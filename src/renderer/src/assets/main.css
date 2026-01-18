@@ -426,6 +426,28 @@ button:disabled {
   margin: 16px;
 }
 
+.stream-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.stream-panel {
+  display: grid;
+  gap: 8px;
+}
+
+.stream-panel-full {
+  grid-column: 1 / -1;
+}
+
+.stream-label {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8f8f8f;
+}
+
 .stream-output {
   min-height: 360px;
   max-height: 70vh;
@@ -436,6 +458,15 @@ button:disabled {
   color: #d4d4d4;
   font-size: 12px;
   white-space: pre-wrap;
+}
+
+@media (max-width: 900px) {
+  .stream-grid {
+    grid-template-columns: 1fr;
+  }
+  .stream-panel-full {
+    grid-column: auto;
+  }
 }
 
 .modal-backdrop,

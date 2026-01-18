@@ -19,7 +19,9 @@ function App(): React.JSX.Element {
   const [saving, setSaving] = useState(false)
   const [secrets, setSecrets] = useState<SecretsShape | null>(null)
   const [secretsSaving, setSecretsSaving] = useState(false)
-  const [streamText, setStreamText] = useState('')
+  const [plannerStreamText, setPlannerStreamText] = useState('')
+  const [executorStreamText, setExecutorStreamText] = useState('')
+  const [otherStreamText, setOtherStreamText] = useState('')
   const [projects, setProjects] = useState<ProjectShape[]>([])
   const [projectName, setProjectName] = useState('')
   const [projectWorkspace, setProjectWorkspace] = useState('')
@@ -46,8 +48,13 @@ function App(): React.JSX.Element {
       if (event.type === 'agent:stream' && typeof event.data === 'object' && event.data) {
         const payload = event.data as { text?: string; stage?: string }
         if (typeof payload.text === 'string') {
-          const prefix = payload.stage ? `[${payload.stage}] ` : ''
-          setStreamText((prev) => `${prev}${prefix}${payload.text}`)
+          if (payload.stage === 'planner') {
+            setPlannerStreamText((prev) => `${prev}${payload.text}`)
+          } else if (payload.stage === 'executor') {
+            setExecutorStreamText((prev) => `${prev}${payload.text}`)
+          } else {
+            setOtherStreamText((prev) => `${prev}${payload.text}`)
+          }
         }
       }
       if (event.type === 'tool:request' && event.data && typeof event.data === 'object') {
@@ -263,6 +270,9 @@ function App(): React.JSX.Element {
   }, [projects, settings])
 
   if (isStreamView) {
+    const plannerOutput = plannerStreamText || 'Waiting for planner stream...'
+    const executorOutput = executorStreamText || 'Waiting for executor stream...'
+    const otherOutput = otherStreamText || 'Waiting for other stream...'
     return (
       <div className="stream-shell">
         <header className="app-header">
@@ -271,7 +281,20 @@ function App(): React.JSX.Element {
             <div className="app-subtitle">Live output</div>
           </div>
         </header>
-        <pre className="stream-output">{streamText || 'Waiting for stream...'}</pre>
+        <div className="stream-grid">
+          <section className="stream-panel">
+            <div className="stream-label">Planner</div>
+            <pre className="stream-output">{plannerOutput}</pre>
+          </section>
+          <section className="stream-panel">
+            <div className="stream-label">Executor</div>
+            <pre className="stream-output">{executorOutput}</pre>
+          </section>
+          <section className="stream-panel stream-panel-full">
+            <div className="stream-label">Other</div>
+            <pre className="stream-output">{otherOutput}</pre>
+          </section>
+        </div>
       </div>
     )
   }

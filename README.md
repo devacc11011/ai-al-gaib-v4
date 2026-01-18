@@ -1,6 +1,7 @@
 # Ai AL GAIB
 
 Planner-Executor 구조로 복잡한 작업은 Planner가 설계하고, 실제 구현은 Executor에 맡겨 **비용 효율적**으로 실행하는 데 초점을 둔 데스크톱 앱.
+또한 대규모 작업을 각 작업으로 분해해 성공적으로 목표를 달성하는 것에 중점을 둡니다.
 
 ## Recommended IDE Setup
 
