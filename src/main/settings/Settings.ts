@@ -21,6 +21,15 @@ export interface GeminiSettings {
 
 export interface Settings {
   activeAgent: AgentType
+  workspacePath?: string
+  planner?: {
+    agent: AgentType
+    model?: string
+  }
+  executor?: {
+    agent: AgentType
+    model?: string
+  }
   claude?: ClaudeSettings
   codex?: CodexSettings
   gemini?: GeminiSettings

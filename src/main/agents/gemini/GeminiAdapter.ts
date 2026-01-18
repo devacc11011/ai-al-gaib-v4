@@ -21,8 +21,15 @@ export class GeminiAdapter extends AgentAdapter {
   async isAvailable(): Promise<boolean> {
     return new Promise((resolve) => {
       const child = spawn('gemini', ['--version'])
-      child.on('error', () => resolve(false))
-      child.on('exit', (code) => resolve(code === 0))
+      child.on('error', () => {
+        this.logger?.log('error', 'gemini:isAvailable', { ok: false })
+        resolve(false)
+      })
+      child.on('exit', (code) => {
+        const ok = code === 0
+        this.logger?.log('info', 'gemini:isAvailable', { ok })
+        resolve(ok)
+      })
     })
   }
 
@@ -37,6 +44,13 @@ export class GeminiAdapter extends AgentAdapter {
 
     const child = spawn('gemini', args, { cwd: task.workspace })
 
+    await this.logger?.log('info', 'gemini:execute', {
+      taskId: task.id,
+      model: this.settings?.model ?? null,
+      outputFormat,
+      args
+    })
+
     let buffer = ''
     let lastMessage = ''
     const errors: string[] = []
@@ -44,9 +58,13 @@ export class GeminiAdapter extends AgentAdapter {
     const handleEvent = (event: GeminiEvent): void => {
       if (event.type === 'message' && typeof event.message === 'string') {
         lastMessage = event.message
+        this.streamSink?.({ taskId: task.id, agent: this.name, text: `${event.message}\n` })
       }
       if (event.type === 'result' && event.result) {
         lastMessage = this.extractText(event.result)
+        if (lastMessage) {
+          this.streamSink?.({ taskId: task.id, agent: this.name, text: `${lastMessage}\n` })
+        }
       }
       if (event.type === 'error') {
         errors.push(JSON.stringify(event))
@@ -75,7 +93,9 @@ export class GeminiAdapter extends AgentAdapter {
     })
 
     child.stderr.on('data', (chunk) => {
-      errors.push(chunk.toString())
+      const text = chunk.toString()
+      errors.push(text)
+      this.streamSink?.({ taskId: task.id, agent: this.name, text: `[stderr] ${text}` })
     })
 
     const exitCode = await new Promise<number>((resolve) => {
@@ -102,6 +122,12 @@ export class GeminiAdapter extends AgentAdapter {
     if (exitCode !== 0 && errors.length === 0) {
       errors.push(`Gemini CLI exited with code ${exitCode}`)
     }
+
+    await this.logger?.log('info', 'gemini:completed', {
+      taskId: task.id,
+      exitCode,
+      errorCount: errors.length
+    })
 
     return {
       id: task.id,

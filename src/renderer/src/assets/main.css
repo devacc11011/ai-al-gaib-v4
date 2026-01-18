@@ -138,6 +138,27 @@ button:disabled {
   color: var(--ev-c-text-3);
 }
 
+.stream-shell {
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+  border-radius: 20px;
+  background: rgba(10, 12, 18, 0.92);
+  border: 1px solid rgba(120, 130, 160, 0.2);
+}
+
+.stream-output {
+  min-height: 360px;
+  max-height: 70vh;
+  overflow: auto;
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(4, 6, 10, 0.9);
+  color: var(--ev-c-text-1);
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+
 .settings-grid {
   display: grid;
   gap: 12px;
@@ -152,6 +173,17 @@ button:disabled {
 
 input[type='password'] {
   letter-spacing: 0.08em;
+}
+
+.inline-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.inline-row button {
+  padding: 8px 12px;
+  font-size: 12px;
 }
 
 @media (max-width: 720px) {

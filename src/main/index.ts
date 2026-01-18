@@ -1,10 +1,10 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { Orchestrator } from './orchestrator/Orchestrator'
 
-function createWindow(): BrowserWindow {
+function createWindow(search?: string): BrowserWindow {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 900,
@@ -30,9 +30,11 @@ function createWindow(): BrowserWindow {
   // HMR for renderer base on electron-vite cli.
   // Load the remote URL for development or the local html file for production.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    const base = process.env['ELECTRON_RENDERER_URL']
+    const url = search ? `${base}?${search}` : base
+    mainWindow.loadURL(url)
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    mainWindow.loadFile(join(__dirname, '../renderer/index.html'), search ? { search } : undefined)
   }
 
   return mainWindow
@@ -40,6 +42,7 @@ function createWindow(): BrowserWindow {
 
 let orchestrator: Orchestrator | null = null
 let unsubscribeEvents: (() => void) | null = null
+let streamWindow: BrowserWindow | null = null
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
@@ -61,11 +64,24 @@ app.whenReady().then(() => {
   unsubscribeEvents?.()
   unsubscribeEvents = orchestrator.onEvent((event) => {
     mainWindow.webContents.send('orchestrator:event', event)
+    streamWindow?.webContents.send('orchestrator:event', event)
   })
 
   ipcMain.handle('orchestrator:run', async (_event, prompt: string) => {
     if (!orchestrator) return { planId: 'none', summary: 'Orchestrator not ready.' }
     return orchestrator.run(prompt)
+  })
+
+  ipcMain.handle('orchestrator:openStreamWindow', async () => {
+    if (streamWindow && !streamWindow.isDestroyed()) {
+      streamWindow.focus()
+      return true
+    }
+    streamWindow = createWindow('view=stream')
+    streamWindow.on('closed', () => {
+      streamWindow = null
+    })
+    return true
   })
 
   ipcMain.handle('settings:get', async () => {
@@ -76,6 +92,14 @@ app.whenReady().then(() => {
   ipcMain.handle('settings:update', async (_event, partial) => {
     if (!orchestrator) return null
     return orchestrator.updateSettings(partial)
+  })
+
+  ipcMain.handle('workspace:pick', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory']
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
   })
 
   ipcMain.handle('secrets:get', async () => {

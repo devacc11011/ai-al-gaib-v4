@@ -12,7 +12,9 @@ export class CodexAdapter extends AgentAdapter {
   async isAvailable(): Promise<boolean> {
     try {
       await import('@openai/codex-sdk')
-      return Boolean(process.env.OPENAI_API_KEY)
+      const hasKey = Boolean(process.env.OPENAI_API_KEY)
+      await this.logger?.log('info', 'codex:isAvailable', { hasKey })
+      return hasKey
     } catch {
       return false
     }
@@ -27,8 +29,20 @@ export class CodexAdapter extends AgentAdapter {
       ? codex.resumeThread(this.settings.threadId)
       : codex.startThread()
 
+    await this.logger?.log('info', 'codex:execute', {
+      taskId: task.id,
+      model: this.settings?.model ?? null,
+      threadId: this.settings?.threadId ?? 'new'
+    })
+
     const result = await thread.run(task.description)
     const summary = this.extractText(result)
+
+    if (summary) {
+      this.streamSink?.({ taskId: task.id, agent: this.name, text: `${summary}\n` })
+    }
+
+    await this.logger?.log('info', 'codex:completed', { taskId: task.id })
 
     return {
       id: task.id,

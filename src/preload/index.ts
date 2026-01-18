@@ -6,6 +6,7 @@ const api = {
   orchestrator: {
     run: (prompt: string): Promise<{ planId: string; summary: string }> =>
       ipcRenderer.invoke('orchestrator:run', prompt),
+    openStreamWindow: (): Promise<boolean> => ipcRenderer.invoke('orchestrator:openStreamWindow'),
     onEvent: (callback: (event: unknown) => void): (() => void) => {
       const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => {
         callback(payload)
@@ -17,6 +18,9 @@ const api = {
   settings: {
     get: (): Promise<unknown> => ipcRenderer.invoke('settings:get'),
     update: (partial: unknown): Promise<unknown> => ipcRenderer.invoke('settings:update', partial)
+  },
+  workspace: {
+    pick: (): Promise<string | null> => ipcRenderer.invoke('workspace:pick')
   },
   secrets: {
     get: (): Promise<unknown> => ipcRenderer.invoke('secrets:get'),

@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import { Plan, Task, AgentType } from '../types'
 import { TaskGraph } from '../graph/TaskGraph'
 
@@ -12,7 +13,7 @@ export class Planner {
       taskLines.slice(1).join(' ') || 'Summarize results and propose next steps.'
 
     const task: Task = {
-      id: 'task-001',
+      id: `task-${randomUUID()}`,
       title: 'Core execution',
       agent,
       status: 'pending',
@@ -24,11 +25,11 @@ export class Planner {
     }
 
     const followUpTask: Task = {
-      id: 'task-002',
+      id: `task-${randomUUID()}`,
       title: 'Follow-up summary',
       agent,
       status: 'pending',
-      dependencies: ['task-001'],
+      dependencies: [task.id],
       workspace,
       description: followUpDescription,
       inputContext: ['Depends on task-001 result'],
@@ -40,9 +41,22 @@ export class Planner {
     graph.add(followUpTask)
 
     const plan: Plan = {
-      id: 'plan-001',
+      id: `plan-${randomUUID()}`,
       createdAt: new Date().toISOString(),
       tasks: [task, followUpTask]
+    }
+
+    return { plan, graph }
+  }
+
+  buildPlanFromTasks(tasks: Task[]): { plan: Plan; graph: TaskGraph } {
+    const graph = new TaskGraph()
+    tasks.forEach((task) => graph.add(task))
+
+    const plan: Plan = {
+      id: `plan-${randomUUID()}`,
+      createdAt: new Date().toISOString(),
+      tasks
     }
 
     return { plan, graph }

@@ -1,5 +1,14 @@
 interface SettingsShape {
   activeAgent: 'mock' | 'claude-code' | 'codex' | 'gemini-cli'
+  workspacePath?: string
+  planner?: {
+    agent: 'mock' | 'claude-code' | 'codex' | 'gemini-cli'
+    model?: string
+  }
+  executor?: {
+    agent: 'mock' | 'claude-code' | 'codex' | 'gemini-cli'
+    model?: string
+  }
   claude?: {
     model?: string
     permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions'

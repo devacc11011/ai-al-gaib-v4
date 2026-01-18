@@ -34,7 +34,18 @@ export class SecretsStore {
 
   async update(partial: Partial<Secrets>): Promise<Secrets> {
     const current = await this.load()
-    const next = { ...current, ...partial }
+    const normalized: Partial<Secrets> = {}
+    if (partial.anthropicApiKey !== undefined) {
+      normalized.anthropicApiKey = partial.anthropicApiKey.trim() || undefined
+    }
+    if (partial.openaiApiKey !== undefined) {
+      normalized.openaiApiKey = partial.openaiApiKey.trim() || undefined
+    }
+    if (partial.geminiApiKey !== undefined) {
+      normalized.geminiApiKey = partial.geminiApiKey.trim() || undefined
+    }
+
+    const next = { ...current, ...normalized }
     await this.save(next)
     return next
   }

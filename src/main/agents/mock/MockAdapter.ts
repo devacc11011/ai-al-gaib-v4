@@ -10,6 +10,7 @@ export class MockAdapter extends AgentAdapter {
 
   async execute(task: Task): Promise<TaskResult> {
     const startedAt = Date.now()
+    await this.logger?.log('info', 'mock:execute', { taskId: task.id })
     await new Promise((resolve) => setTimeout(resolve, 300))
 
     return {

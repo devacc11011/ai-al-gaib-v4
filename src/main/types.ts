@@ -35,6 +35,7 @@ export type OrchestratorEventType =
   | 'plan:created'
   | 'task:started'
   | 'task:completed'
+  | 'agent:stream'
   | 'run:completed'
   | 'run:failed'
 

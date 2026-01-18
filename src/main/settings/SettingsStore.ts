@@ -4,6 +4,13 @@ import { Settings } from './Settings'
 
 const DEFAULT_SETTINGS: Settings = {
   activeAgent: 'mock',
+  workspacePath: '',
+  planner: {
+    agent: 'mock'
+  },
+  executor: {
+    agent: 'mock'
+  },
   claude: {
     permissionMode: 'acceptEdits',
     maxTurns: 10,
@@ -47,6 +54,8 @@ export class SettingsStore {
     const next: Settings = {
       ...current,
       ...partial,
+      planner: { ...current.planner, ...partial.planner },
+      executor: { ...current.executor, ...partial.executor },
       claude: { ...current.claude, ...partial.claude },
       codex: { ...current.codex, ...partial.codex },
       gemini: { ...current.gemini, ...partial.gemini }
