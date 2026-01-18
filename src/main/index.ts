@@ -2,8 +2,9 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { Orchestrator } from './orchestrator/Orchestrator'
 
-function createWindow(): void {
+function createWindow(): BrowserWindow {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 900,
@@ -33,7 +34,12 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  return mainWindow
 }
+
+let orchestrator: Orchestrator | null = null
+let unsubscribeEvents: (() => void) | null = null
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
@@ -49,10 +55,38 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
+  const mainWindow = createWindow()
+  orchestrator = new Orchestrator(process.cwd())
 
-  createWindow()
+  unsubscribeEvents?.()
+  unsubscribeEvents = orchestrator.onEvent((event) => {
+    mainWindow.webContents.send('orchestrator:event', event)
+  })
+
+  ipcMain.handle('orchestrator:run', async (_event, prompt: string) => {
+    if (!orchestrator) return { planId: 'none', summary: 'Orchestrator not ready.' }
+    return orchestrator.run(prompt)
+  })
+
+  ipcMain.handle('settings:get', async () => {
+    if (!orchestrator) return null
+    return orchestrator.getSettings()
+  })
+
+  ipcMain.handle('settings:update', async (_event, partial) => {
+    if (!orchestrator) return null
+    return orchestrator.updateSettings(partial)
+  })
+
+  ipcMain.handle('secrets:get', async () => {
+    if (!orchestrator) return null
+    return orchestrator.getSecrets()
+  })
+
+  ipcMain.handle('secrets:update', async (_event, partial) => {
+    if (!orchestrator) return null
+    return orchestrator.updateSecrets(partial)
+  })
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the

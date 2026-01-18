@@ -1,8 +1,28 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
 // Custom APIs for renderer
-const api = {}
+const api = {
+  orchestrator: {
+    run: (prompt: string): Promise<{ planId: string; summary: string }> =>
+      ipcRenderer.invoke('orchestrator:run', prompt),
+    onEvent: (callback: (event: unknown) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: unknown) => {
+        callback(payload)
+      }
+      ipcRenderer.on('orchestrator:event', listener)
+      return () => ipcRenderer.removeListener('orchestrator:event', listener)
+    }
+  },
+  settings: {
+    get: (): Promise<unknown> => ipcRenderer.invoke('settings:get'),
+    update: (partial: unknown): Promise<unknown> => ipcRenderer.invoke('settings:update', partial)
+  },
+  secrets: {
+    get: (): Promise<unknown> => ipcRenderer.invoke('secrets:get'),
+    update: (partial: unknown): Promise<unknown> => ipcRenderer.invoke('secrets:update', partial)
+  }
+}
 
 // Use `contextBridge` APIs to expose Electron APIs to
 // renderer only if context isolation is enabled, otherwise

@@ -20,6 +20,16 @@ $ npm install
 $ npm run dev
 ```
 
+## Agent Adapter Smoke Test
+
+1. Set the API key for the agent you want to test:
+   - Claude: `ANTHROPIC_API_KEY`
+   - Codex: `OPENAI_API_KEY`
+   - Gemini CLI: ensure `gemini` is on PATH (and authenticated).
+2. Update `.context/settings.json` with `activeAgent` (`claude-code`, `codex`, `gemini-cli`).
+3. Run the app and click **Run Core Pipeline**.
+4. Confirm `.context/tasks/task-001-result.md` contains the agent summary and the UI shows events.
+
 ### Build
 
 ```bash
