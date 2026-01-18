@@ -102,8 +102,12 @@ export class Orchestrator {
     const runStamp = new Date().toISOString().replace(/[:.]/g, '-')
     this.logger = new Logger(join(workspacePath, '.logs'), `run-${runStamp}.log`)
     await this.logger.log('info', 'planner:input_received', {
-      prompt,
       workspacePath,
+      projectId: project?.id ?? null,
+      projectName: project?.name ?? null
+    })
+    await this.writePromptLog(workspacePath, {
+      prompt,
       projectId: project?.id ?? null,
       projectName: project?.name ?? null
     })
@@ -466,5 +470,22 @@ export class Orchestrator {
       ''
     ].join('\n')
     await fs.appendFile(path, `${entry}\n`, 'utf-8')
+  }
+
+  private async writePromptLog(
+    workspacePath: string,
+    payload: { prompt: string; projectId: string | null; projectName: string | null }
+  ): Promise<void> {
+    const logPath = join(workspacePath, '.logs', 'prompts.log')
+    const entry = [
+      `# ${new Date().toISOString()}`,
+      `projectId: ${payload.projectId ?? 'none'}`,
+      `projectName: ${payload.projectName ?? 'none'}`,
+      '---',
+      payload.prompt.trim(),
+      '',
+      ''
+    ].join('\n')
+    await fs.appendFile(logPath, entry, 'utf-8')
   }
 }

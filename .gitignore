@@ -1,7 +1,11 @@
 node_modules
 dist
 out
+.idea
+build
+.vscode
 .DS_Store
 .eslintcache
 *.log*
 .logs
+.context
