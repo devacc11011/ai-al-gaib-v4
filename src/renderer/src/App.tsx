@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import './monaco'
 import Editor from '@monaco-editor/react'
 import { claudeModels, codexModels, geminiModels } from './modelOptions'
 
@@ -36,6 +37,7 @@ function App(): React.JSX.Element {
   const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceEntryShape[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [fileContent, setFileContent] = useState<string>('')
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const unsubscribe = window.api.orchestrator.onEvent((event) => {
@@ -60,6 +62,16 @@ function App(): React.JSX.Element {
 
     return () => unsubscribe()
   }, [])
+
+  useEffect(() => {
+    const unsubscribe = window.api.menu.onAction((payload) => {
+      if (payload.type === 'open-settings') setShowSettings(true)
+      if (payload.type === 'switch-project') handleClearProject()
+      if (payload.type === 'run') handleRun()
+      if (payload.type === 'open-stream') window.api.orchestrator.openStreamWindow()
+    })
+    return () => unsubscribe()
+  }, [settings])
 
   useEffect(() => {
     window.api.settings.get().then((data) => {
@@ -171,6 +183,57 @@ function App(): React.JSX.Element {
     setFileContent(content)
   }
 
+  const fileTree = useMemo(() => {
+    type Node = {
+      name: string
+      path: string
+      type: 'file' | 'dir'
+      children: Node[]
+    }
+    const root: Node = { name: '', path: '', type: 'dir', children: [] }
+
+    const ensureChild = (parent: Node, name: string, fullPath: string, type: 'file' | 'dir'): Node => {
+      const existing = parent.children.find((child) => child.name === name)
+      if (existing) return existing
+      const node: Node = { name, path: fullPath, type, children: [] }
+      parent.children.push(node)
+      return node
+    }
+
+    const sorted = [...workspaceFiles].sort((a, b) => a.path.localeCompare(b.path))
+    for (const entry of sorted) {
+      const parts = entry.path.split('/').filter(Boolean)
+      let current = root
+      let currentPath = ''
+      parts.forEach((part, index) => {
+        currentPath = currentPath ? `${currentPath}/${part}` : part
+        const isLeaf = index === parts.length - 1
+        const nodeType: 'file' | 'dir' = isLeaf ? entry.type : 'dir'
+        current = ensureChild(current, part, currentPath, nodeType)
+      })
+    }
+
+    const sortTree = (node: Node) => {
+      node.children.sort((a, b) => {
+        if (a.type !== b.type) return a.type === 'dir' ? -1 : 1
+        return a.name.localeCompare(b.name)
+      })
+      node.children.forEach(sortTree)
+    }
+    sortTree(root)
+
+    return root.children
+  }, [workspaceFiles])
+
+  const toggleDir = (path: string) => {
+    setExpandedDirs((prev) => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
+  }
+
   const resolveModelValue = (value: string | undefined, options: { value: string }[]): string => {
     if (!value) return ''
     return options.some((option) => option.value === value) ? value : 'custom'
@@ -269,25 +332,25 @@ function App(): React.JSX.Element {
     <div className="app-root">
       <aside className="activity-bar">
         <button
-          className={activePanel === 'command' ? 'active' : ''}
+          className={activePanel === 'command' ? 'active icon-button' : 'icon-button'}
           onClick={() => setActivePanel('command')}
           title="Command"
         >
-          CMD
+          ▶
         </button>
         <button
-          className={activePanel === 'workspace' ? 'active' : ''}
+          className={activePanel === 'workspace' ? 'active icon-button' : 'icon-button'}
           onClick={() => setActivePanel('workspace')}
           title="Workspace"
         >
-          FS
+          📁
         </button>
         <button
-          className={activePanel === 'plan' ? 'active' : ''}
+          className={activePanel === 'plan' ? 'active icon-button' : 'icon-button'}
           onClick={() => setActivePanel('plan')}
           title="Plan/Tasks"
         >
-          PL
+          ☰
         </button>
       </aside>
 
@@ -298,9 +361,6 @@ function App(): React.JSX.Element {
             <div className="sidebar-card">
               <div className="sidebar-title">{currentProject?.name ?? 'Untitled'}</div>
               <div className="sidebar-subtitle">{currentProject?.workspacePath ?? '—'}</div>
-              <button type="button" onClick={handleClearProject}>
-                Switch Project
-              </button>
             </div>
 
             <div className="sidebar-header">Command</div>
@@ -347,16 +407,15 @@ function App(): React.JSX.Element {
             <div className="sidebar-card">
               {workspaceFiles.length === 0 && <div className="event-empty">No files found.</div>}
               <div className="file-list">
-                {workspaceFiles.map((entry) => (
-                  <button
-                    key={`${entry.type}-${entry.path}`}
-                    type="button"
-                    className={selectedFile === entry.path ? 'file-item active' : 'file-item'}
-                    onClick={() => entry.type === 'file' && handleSelectFile(entry.path)}
-                  >
-                    <span className="file-kind">{entry.type === 'dir' ? 'DIR' : 'FILE'}</span>
-                    <span className="file-name">{entry.path}</span>
-                  </button>
+                {fileTree.map((node) => (
+                  <TreeNodeView
+                    key={node.path}
+                    node={node}
+                    expandedDirs={expandedDirs}
+                    selectedFile={selectedFile}
+                    onToggleDir={toggleDir}
+                    onSelectFile={handleSelectFile}
+                  />
                 ))}
               </div>
             </div>
@@ -367,10 +426,30 @@ function App(): React.JSX.Element {
       <div className="main-frame">
         <header className="top-bar">
           <div className="top-left">
-            <div className="app-title">AI Orchestrator</div>
+            <div className="app-title">Ai AL GAIB</div>
             <div className="app-subtitle">Workspace · Planner · Executor</div>
           </div>
           <div className="top-right">
+            <div className="top-project">
+              <select
+                value={settings?.activeProjectId ?? ''}
+                onChange={(event) => {
+                  const value = event.target.value
+                  if (!value) {
+                    handleClearProject()
+                  } else {
+                    handleSelectProject(value)
+                  }
+                }}
+              >
+                <option value="">Select project...</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="app-status">{statusLine}</div>
             <button type="button" onClick={() => setShowSettings(true)}>
               Settings
@@ -842,3 +921,59 @@ function App(): React.JSX.Element {
 }
 
 export default App
+
+type TreeNode = {
+  name: string
+  path: string
+  type: 'file' | 'dir'
+  children: TreeNode[]
+}
+
+function TreeNodeView({
+  node,
+  expandedDirs,
+  selectedFile,
+  onToggleDir,
+  onSelectFile
+}: {
+  node: TreeNode
+  expandedDirs: Set<string>
+  selectedFile: string | null
+  onToggleDir: (path: string) => void
+  onSelectFile: (path: string) => void
+}): React.JSX.Element {
+  const isDir = node.type === 'dir'
+  const expanded = isDir && expandedDirs.has(node.path)
+  const hasChildren = isDir && node.children.length > 0
+
+  return (
+    <div className="tree-node">
+      <button
+        type="button"
+        className={selectedFile === node.path ? 'file-item active' : 'file-item'}
+        onClick={() => {
+          if (isDir) onToggleDir(node.path)
+          else onSelectFile(node.path)
+        }}
+      >
+        <span className="file-caret">{isDir ? (expanded ? 'v' : '>') : ''}</span>
+        <span className={isDir ? 'file-icon dir' : 'file-icon file'} aria-hidden />
+        <span className="file-name">{node.name}</span>
+      </button>
+      {hasChildren && expanded && (
+        <div className="tree-children">
+          {node.children.map((child) => (
+            <TreeNodeView
+              key={child.path}
+              node={child}
+              expandedDirs={expandedDirs}
+              selectedFile={selectedFile}
+              onToggleDir={onToggleDir}
+              onSelectFile={onSelectFile}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}

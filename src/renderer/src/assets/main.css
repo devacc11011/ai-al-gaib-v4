@@ -40,6 +40,11 @@ body {
   cursor: pointer;
 }
 
+.icon-button {
+  font-size: 16px;
+  letter-spacing: 0;
+}
+
 .activity-bar button.active {
   border-color: #0e639c;
   color: #ffffff;
@@ -80,7 +85,7 @@ body {
 
 .file-item {
   display: grid;
-  grid-template-columns: 44px 1fr;
+  grid-template-columns: 16px 16px 1fr;
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
@@ -96,14 +101,40 @@ body {
   background: rgba(14, 99, 156, 0.2);
 }
 
-.file-kind {
-  font-size: 10px;
-  color: #9b9b9b;
-}
-
 .file-name {
   font-size: 12px;
   word-break: break-all;
+}
+
+.file-caret {
+  font-size: 11px;
+  color: #9b9b9b;
+  text-align: center;
+}
+
+.file-icon {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  display: inline-block;
+  background: #2a2a2a;
+  border: 1px solid #3a3a3a;
+}
+
+.file-icon.dir {
+  background: #1f4f7a;
+  border-color: #2f6a94;
+}
+
+.file-icon.file {
+  background: #4b4b4b;
+  border-color: #5a5a5a;
+}
+
+.tree-children {
+  padding-left: 16px;
+  display: grid;
+  gap: 4px;
 }
 
 .sidebar-title {
@@ -154,6 +185,10 @@ body {
   align-items: center;
   gap: 12px;
   margin-left: auto;
+}
+
+.top-project select {
+  width: 180px;
 }
 
 .app-title {

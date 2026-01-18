@@ -9,3 +9,6 @@ build
 *.log*
 .logs
 .context
+public/monaco
+src/renderer/public/monaco
+img*.png

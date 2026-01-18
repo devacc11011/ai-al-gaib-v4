@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog, Menu } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -48,6 +48,7 @@ let streamWindow: BrowserWindow | null = null
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  app.setName('Ai AL GAIB')
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
@@ -59,6 +60,72 @@ app.whenReady().then(() => {
   })
 
   const mainWindow = createWindow()
+  const menu = Menu.buildFromTemplate([
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'Open Settings',
+          click: () => mainWindow.webContents.send('menu:action', { type: 'open-settings' })
+        },
+        {
+          label: 'Switch Project',
+          click: () => mainWindow.webContents.send('menu:action', { type: 'switch-project' })
+        },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' }
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label: 'Run',
+      submenu: [
+        {
+          label: 'Run Core Pipeline',
+          click: () => mainWindow.webContents.send('menu:action', { type: 'run' })
+        },
+        {
+          label: 'Open Stream Window',
+          click: () => mainWindow.webContents.send('menu:action', { type: 'open-stream' })
+        }
+      ]
+    },
+    {
+      role: 'help',
+      submenu: [
+        {
+          label: 'Documentation',
+          click: () => shell.openExternal('https://electron-vite.org/')
+        }
+      ]
+    }
+  ])
+  Menu.setApplicationMenu(menu)
   orchestrator = new Orchestrator(process.cwd())
 
   unsubscribeEvents?.()

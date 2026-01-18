@@ -34,6 +34,15 @@ const api = {
     respond: (payload: { id: string; allow: boolean }): Promise<boolean> =>
       ipcRenderer.invoke('tool:respond', payload)
   },
+  menu: {
+    onAction: (callback: (payload: { type: string }) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: { type: string }) => {
+        callback(payload)
+      }
+      ipcRenderer.on('menu:action', listener)
+      return () => ipcRenderer.removeListener('menu:action', listener)
+    }
+  },
   secrets: {
     get: (): Promise<unknown> => ipcRenderer.invoke('secrets:get'),
     update: (partial: unknown): Promise<unknown> => ipcRenderer.invoke('secrets:update', partial)
