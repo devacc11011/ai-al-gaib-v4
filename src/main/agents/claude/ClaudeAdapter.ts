@@ -48,6 +48,17 @@ export class ClaudeAdapter extends AgentAdapter {
       settingSources: this.settings?.settingSources ?? ['project']
     } as Record<string, unknown>
 
+    options['env'] = {
+      ...process.env,
+      DEBUG_CLAUDE_AGENT_SDK: process.env.DEBUG_CLAUDE_AGENT_SDK ?? '1'
+    }
+    options['stderr'] = (message: string) => {
+      const trimmed = message.trim()
+      if (!trimmed) return
+      this.logger?.log('error', 'claude:stderr', { taskId: task.id, message: trimmed })
+      this.streamSink?.({ taskId: task.id, agent: this.name, text: `[claude stderr] ${trimmed}\n` })
+    }
+
     options['canUseTool'] = async (toolName: string, input: unknown) => {
       const decision = this.evaluateToolAccess(task.workspace, toolName, input)
       await this.logger?.log('info', 'agent:tool_request', {
@@ -96,15 +107,14 @@ export class ClaudeAdapter extends AgentAdapter {
     }
 
     async function* inputStream() {
-      const message = {
-        role: 'user',
-        content: task.description
-      }
-      // SDKUserMessage requires session_id and parent_tool_use_id in streaming mode.
       yield {
-        ...message,
-        session_id: 'session-1',
-        parent_tool_use_id: null
+        type: 'user',
+        session_id: '',
+        parent_tool_use_id: null,
+        message: {
+          role: 'user',
+          content: [{ type: 'text', text: task.description }]
+        }
       } as unknown
     }
 
@@ -118,39 +128,64 @@ export class ClaudeAdapter extends AgentAdapter {
 
     let lastText = ''
     let chunkCount = 0
-    const stream = query({ prompt: inputStream() as AsyncIterable<unknown>, options })
 
-    for await (const chunk of stream as AsyncIterable<unknown>) {
-      chunkCount += 1
-      const { text, isFinal } = this.extractText(chunk)
-      if (text) {
-        lastText = isFinal ? text : `${lastText}${text}`
-        this.streamSink?.({ taskId: task.id, agent: this.name, text })
+    try {
+      const stream = query({ prompt: inputStream() as AsyncIterable<unknown>, options })
+
+      for await (const chunk of stream as AsyncIterable<unknown>) {
+        chunkCount += 1
+        const { text, isFinal } = this.extractText(chunk)
+        if (text) {
+          lastText = isFinal ? text : `${lastText}${text}`
+          this.streamSink?.({ taskId: task.id, agent: this.name, text })
+        }
+        if (isFinal && text) break
       }
-      if (isFinal && text) break
-    }
 
-    await this.logger?.log('info', 'claude:stream_summary', {
-      taskId: task.id,
-      chunkCount,
-      lastTextLength: lastText.length
-    })
+      await this.logger?.log('info', 'claude:stream_summary', {
+        taskId: task.id,
+        chunkCount,
+        lastTextLength: lastText.length
+      })
 
-    if (!lastText) {
-      this.streamSink?.({ taskId: task.id, agent: this.name, text: '[no-stream-text]\n' })
-    }
+      if (!lastText) {
+        this.streamSink?.({ taskId: task.id, agent: this.name, text: '[no-stream-text]\n' })
+      }
 
-    await this.logger?.log('info', 'claude:completed', { taskId: task.id })
+      await this.logger?.log('info', 'claude:completed', { taskId: task.id })
 
-    return {
-      id: task.id,
-      status: 'completed',
-      durationMs: Date.now() - startedAt,
-      agent: this.name,
-      filesModified: [],
-      summary: lastText || 'Claude agent completed the task.',
-      handoffNotes: [],
-      errors: []
+      return {
+        id: task.id,
+        status: 'completed',
+        durationMs: Date.now() - startedAt,
+        agent: this.name,
+        filesModified: [],
+        summary: lastText || 'Claude agent completed the task.',
+        handoffNotes: [],
+        errors: []
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      await this.logger?.log('error', 'claude:execute_failed', {
+        taskId: task.id,
+        error: errorMessage,
+        stack: error instanceof Error ? error.stack : null
+      })
+      this.streamSink?.({
+        taskId: task.id,
+        agent: this.name,
+        text: `[claude error] ${errorMessage}\n`
+      })
+      return {
+        id: task.id,
+        status: 'failed',
+        durationMs: Date.now() - startedAt,
+        agent: this.name,
+        filesModified: [],
+        summary: lastText || 'Claude agent failed to execute.',
+        handoffNotes: [],
+        errors: [errorMessage]
+      }
     }
   }
 

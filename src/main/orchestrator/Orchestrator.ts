@@ -110,17 +110,19 @@ export class Orchestrator {
         : this.workspaceRoot
     this.activeWorkspacePath = workspacePath
 
-    this.contextManager = new ContextManager(join(workspacePath, '.context'), this.logger)
+    const appContextPath = join(this.workspaceRoot, '.context')
+    const appLogPath = join(this.workspaceRoot, '.logs')
+    this.contextManager = new ContextManager(appContextPath, this.logger)
     await this.contextManager.ensure()
 
     const runStamp = new Date().toISOString().replace(/[:.]/g, '-')
-    this.logger = new Logger(join(workspacePath, '.logs'), `run-${runStamp}.log`)
+    this.logger = new Logger(appLogPath, `run-${runStamp}.log`)
     await this.logger.log('info', 'planner:input_received', {
       workspacePath,
       projectId: project?.id ?? null,
       projectName: project?.name ?? null
     })
-    await this.writePromptLog(workspacePath, {
+    await this.writePromptLog(appLogPath, {
       prompt,
       projectId: project?.id ?? null,
       projectName: project?.name ?? null
@@ -283,7 +285,12 @@ export class Orchestrator {
   ): Promise<Task[] | null> {
     if (plannerAgent === 'mock') return null
 
-    const plannerAdapter = this.createAdapterForAgent(plannerAgent, settings, settings.planner?.model)
+    const plannerAdapter = this.createAdapterForAgent(
+      plannerAgent,
+      settings,
+      settings.planner?.model,
+      'planner'
+    )
     if (!plannerAdapter) return null
     const available = await plannerAdapter.isAvailable()
     if (!available) {
@@ -322,7 +329,8 @@ export class Orchestrator {
   private createAdapterForAgent(
     agent: AgentType,
     settings: Settings,
-    modelOverride?: string
+    modelOverride?: string,
+    stage?: 'planner' | 'executor'
   ): MockAdapter | ClaudeAdapter | CodexAdapter | GeminiAdapter | null {
     const attach = (adapter: MockAdapter | ClaudeAdapter | CodexAdapter | GeminiAdapter) => {
       adapter.setLogger(this.logger)
@@ -330,7 +338,7 @@ export class Orchestrator {
         this.eventBus.emitEvent({
           type: 'agent:stream',
           timestamp: new Date().toISOString(),
-          data: payload
+          data: { ...payload, stage }
         })
       })
       return adapter
@@ -438,10 +446,10 @@ export class Orchestrator {
 
   private async plannerContextPath(
     project: Project | null,
-    workspacePath: string
+    _workspacePath: string
   ): Promise<string> {
     const projectId = project?.id ?? 'default'
-    const contextDir = join(workspacePath, '.context', 'projects', projectId)
+    const contextDir = join(this.workspaceRoot, '.context', 'projects', projectId)
     await fs.mkdir(contextDir, { recursive: true })
     return join(contextDir, 'planner-context.md')
   }
@@ -482,10 +490,10 @@ export class Orchestrator {
   }
 
   private async writePromptLog(
-    workspacePath: string,
+    logDir: string,
     payload: { prompt: string; projectId: string | null; projectName: string | null }
   ): Promise<void> {
-    const logPath = join(workspacePath, '.logs', 'prompts.log')
+    const logPath = join(logDir, 'prompts.log')
     const entry = [
       `# ${new Date().toISOString()}`,
       `projectId: ${payload.projectId ?? 'none'}`,
