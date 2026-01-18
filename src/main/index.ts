@@ -123,6 +123,16 @@ app.whenReady().then(() => {
     return true
   })
 
+  ipcMain.handle('workspace:listFiles', async (_event, depth: number) => {
+    if (!orchestrator) return []
+    return orchestrator.listWorkspaceFiles(depth)
+  })
+
+  ipcMain.handle('workspace:readFile', async (_event, path: string) => {
+    if (!orchestrator) return ''
+    return orchestrator.readWorkspaceFile(path)
+  })
+
   ipcMain.handle('secrets:get', async () => {
     if (!orchestrator) return null
     return orchestrator.getSecrets()

@@ -20,7 +20,9 @@ const api = {
     update: (partial: unknown): Promise<unknown> => ipcRenderer.invoke('settings:update', partial)
   },
   workspace: {
-    pick: (): Promise<string | null> => ipcRenderer.invoke('workspace:pick')
+    pick: (): Promise<string | null> => ipcRenderer.invoke('workspace:pick'),
+    listFiles: (depth = 3): Promise<unknown> => ipcRenderer.invoke('workspace:listFiles', depth),
+    readFile: (path: string): Promise<string> => ipcRenderer.invoke('workspace:readFile', path)
   },
   projects: {
     list: (): Promise<unknown> => ipcRenderer.invoke('projects:list'),

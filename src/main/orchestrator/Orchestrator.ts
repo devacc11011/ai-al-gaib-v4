@@ -18,6 +18,7 @@ import { SecretsStore, Secrets } from '../settings/SecretsStore'
 import { Logger } from '../logging/Logger'
 import { ProjectStore, Project } from '../projects/ProjectStore'
 import { ToolApprovalManager } from './ToolApprovalManager'
+import { WorkspaceService, WorkspaceEntry } from '../workspace/WorkspaceService'
 
 export class Orchestrator {
   private eventBus = new EventBus()
@@ -31,6 +32,8 @@ export class Orchestrator {
   private logger?: Logger
   private projectStore: ProjectStore
   private toolApproval: ToolApprovalManager
+  private workspaceService: WorkspaceService
+  private activeWorkspacePath: string
 
   constructor(private workspaceRoot: string) {
     const contextPath = join(this.workspaceRoot, '.context')
@@ -48,6 +51,8 @@ export class Orchestrator {
       this.logger,
       (payload) => this.toolApproval.request(payload)
     )
+    this.workspaceService = new WorkspaceService()
+    this.activeWorkspacePath = this.workspaceRoot
   }
 
   onEvent(listener: (event: OrchestratorEvent) => void): () => void {
@@ -87,6 +92,14 @@ export class Orchestrator {
     this.toolApproval.resolve(id, allow)
   }
 
+  async listWorkspaceFiles(depth = 3): Promise<WorkspaceEntry[]> {
+    return this.workspaceService.listFiles(this.activeWorkspacePath, depth)
+  }
+
+  async readWorkspaceFile(path: string): Promise<string> {
+    return this.workspaceService.readFile(this.activeWorkspacePath, path)
+  }
+
   async run(prompt: string): Promise<{ planId: string; summary: string }> {
     const settings = await this.settingsStore.load()
     const project = await this.resolveActiveProject(settings)
@@ -95,6 +108,7 @@ export class Orchestrator {
       : settings.workspacePath
         ? resolve(settings.workspacePath)
         : this.workspaceRoot
+    this.activeWorkspacePath = workspacePath
 
     this.contextManager = new ContextManager(join(workspacePath, '.context'), this.logger)
     await this.contextManager.ensure()
