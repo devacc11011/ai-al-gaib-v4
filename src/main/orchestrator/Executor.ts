@@ -9,7 +9,13 @@ export class Executor {
     private eventBus: EventBus,
     private contextManager: ContextManager,
     private adapters: AgentRegistry,
-    private logger?: Logger
+    private logger?: Logger,
+    private approvalHandler?: (payload: {
+      taskId: string
+      agent: Task['agent']
+      toolName: string
+      input: unknown
+    }) => Promise<boolean>
   ) {}
 
   async execute(task: Task): Promise<TaskResult> {
@@ -18,7 +24,10 @@ export class Executor {
       timestamp: new Date().toISOString(),
       data: { taskId: task.id, agent: task.agent }
     })
-    await this.logger?.log('info', 'task:started', { taskId: task.id, agent: task.agent })
+    await this.logger?.log('info', 'executor:starting_task', {
+      taskId: task.id,
+      agent: task.agent
+    })
 
     const adapter = this.adapters.get(task.agent)
     if (!adapter) {
@@ -35,7 +44,10 @@ export class Executor {
       }
 
       await this.contextManager.writeResult(errorResult)
-      await this.logger?.log('error', 'adapter:missing', { taskId: task.id, agent: task.agent })
+      await this.logger?.log('error', 'executor:adapter_missing', {
+        taskId: task.id,
+        agent: task.agent
+      })
 
       this.eventBus.emitEvent({
         type: 'task:completed',
@@ -59,8 +71,9 @@ export class Executor {
         length: payload.text.length
       })
     })
+    adapter.setApprovalHandler(this.approvalHandler)
     const available = await adapter.isAvailable()
-    await this.logger?.log('info', 'agent:availability', {
+    await this.logger?.log('info', 'executor:agent_available', {
       taskId: task.id,
       agent: task.agent,
       available
@@ -79,7 +92,10 @@ export class Executor {
       }
 
       await this.contextManager.writeResult(errorResult)
-      await this.logger?.log('error', 'agent:unavailable', { taskId: task.id, agent: task.agent })
+      await this.logger?.log('error', 'executor:agent_unavailable', {
+        taskId: task.id,
+        agent: task.agent
+      })
 
       this.eventBus.emitEvent({
         type: 'task:completed',
@@ -91,7 +107,7 @@ export class Executor {
     }
 
     task.status = 'running'
-    await this.logger?.log('info', 'task:execute', {
+    await this.logger?.log('info', 'executor:running_task', {
       taskId: task.id,
       agent: task.agent
     })
@@ -99,7 +115,10 @@ export class Executor {
     task.status = result.status
 
     await this.contextManager.writeResult(result)
-    await this.logger?.log('info', 'task:completed', { taskId: task.id, status: result.status })
+    await this.logger?.log('info', 'executor:task_completed', {
+      taskId: task.id,
+      status: result.status
+    })
 
     this.eventBus.emitEvent({
       type: 'task:completed',

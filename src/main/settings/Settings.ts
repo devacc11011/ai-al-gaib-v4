@@ -21,6 +21,7 @@ export interface GeminiSettings {
 
 export interface Settings {
   activeAgent: AgentType
+  activeProjectId?: string
   workspacePath?: string
   planner?: {
     agent: AgentType

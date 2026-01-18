@@ -8,6 +8,12 @@ export abstract class AgentAdapter {
 
   protected logger?: Logger
   protected streamSink?: (payload: { taskId: string; agent: Task['agent']; text: string }) => void
+  protected approvalHandler?: (payload: {
+    taskId: string
+    agent: Task['agent']
+    toolName: string
+    input: unknown
+  }) => Promise<boolean>
 
   setLogger(logger?: Logger): void {
     this.logger = logger
@@ -17,5 +23,11 @@ export abstract class AgentAdapter {
     sink?: (payload: { taskId: string; agent: Task['agent']; text: string }) => void
   ): void {
     this.streamSink = sink
+  }
+
+  setApprovalHandler(
+    handler?: (payload: { taskId: string; agent: Task['agent']; toolName: string; input: unknown }) => Promise<boolean>
+  ): void {
+    this.approvalHandler = handler
   }
 }

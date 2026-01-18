@@ -102,6 +102,27 @@ app.whenReady().then(() => {
     return result.filePaths[0]
   })
 
+  ipcMain.handle('projects:list', async () => {
+    if (!orchestrator) return []
+    return orchestrator.listProjects()
+  })
+
+  ipcMain.handle('projects:create', async (_event, payload: { name: string; workspacePath: string }) => {
+    if (!orchestrator) return null
+    return orchestrator.createProject(payload.name, payload.workspacePath)
+  })
+
+  ipcMain.handle('projects:select', async (_event, projectId: string) => {
+    if (!orchestrator) return null
+    return orchestrator.selectProject(projectId)
+  })
+
+  ipcMain.handle('tool:respond', async (_event, payload: { id: string; allow: boolean }) => {
+    if (!orchestrator) return false
+    orchestrator.resolveToolApproval(payload.id, payload.allow)
+    return true
+  })
+
   ipcMain.handle('secrets:get', async () => {
     if (!orchestrator) return null
     return orchestrator.getSecrets()

@@ -36,6 +36,8 @@ export type OrchestratorEventType =
   | 'task:started'
   | 'task:completed'
   | 'agent:stream'
+  | 'tool:request'
+  | 'tool:decision'
   | 'run:completed'
   | 'run:failed'
 

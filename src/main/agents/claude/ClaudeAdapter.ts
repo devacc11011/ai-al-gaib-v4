@@ -1,6 +1,7 @@
 import { AgentAdapter } from '../base/AgentAdapter'
 import { Task, TaskResult } from '../../types'
 import { ClaudeSettings } from '../../settings/Settings'
+import { resolve } from 'path'
 
 export class ClaudeAdapter extends AgentAdapter {
   name: Task['agent'] = 'claude-code'
@@ -32,27 +33,89 @@ export class ClaudeAdapter extends AgentAdapter {
     const startedAt = Date.now()
     const { query } = await import('@anthropic-ai/claude-agent-sdk')
 
+    const enforcedAllowedTools = ['Read', 'Write', 'Edit']
+    const allowedTools = (this.settings?.allowedTools ?? enforcedAllowedTools).filter((tool) =>
+      enforcedAllowedTools.includes(tool)
+    )
+
     const options = {
       model: this.settings?.model,
       cwd: task.workspace,
       additionalDirectories: [task.workspace, ...(this.settings?.additionalDirectories ?? [])],
       permissionMode: this.settings?.permissionMode ?? 'acceptEdits',
       maxTurns: this.settings?.maxTurns ?? 10,
-      allowedTools: this.settings?.allowedTools ?? ['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep'],
+      allowedTools,
       settingSources: this.settings?.settingSources ?? ['project']
     } as Record<string, unknown>
+
+    options['canUseTool'] = async (toolName: string, input: unknown) => {
+      const decision = this.evaluateToolAccess(task.workspace, toolName, input)
+      await this.logger?.log('info', 'agent:tool_request', {
+        taskId: task.id,
+        agent: this.name,
+        toolName,
+        decision: decision.allowed ? 'allow' : 'deny',
+        reason: decision.reason
+      })
+      if (!decision.allowed) {
+        this.streamSink?.({
+          taskId: task.id,
+          agent: this.name,
+          text: `[tool denied] ${toolName} - ${decision.reason}\n`
+        })
+        return false
+      }
+
+      if (!this.approvalHandler) {
+        return true
+      }
+
+      const approved = await this.approvalHandler({
+        taskId: task.id,
+        agent: this.name,
+        toolName,
+        input
+      })
+
+      await this.logger?.log('info', 'agent:tool_decision', {
+        taskId: task.id,
+        agent: this.name,
+        toolName,
+        decision: approved ? 'allow' : 'deny'
+      })
+
+      if (!approved) {
+        this.streamSink?.({
+          taskId: task.id,
+          agent: this.name,
+          text: `[tool denied] ${toolName} - user denied\n`
+        })
+      }
+
+      return approved
+    }
+
+    async function* inputStream() {
+      yield {
+        type: 'user',
+        message: {
+          role: 'user',
+          content: task.description
+        }
+      }
+    }
 
     await this.logger?.log('info', 'claude:execute', {
       taskId: task.id,
       model: this.settings?.model ?? null,
       permissionMode: options.permissionMode,
       maxTurns: options.maxTurns,
-      allowedToolsCount: Array.isArray(options.allowedTools) ? options.allowedTools.length : 0
+      allowedTools
     })
 
     let lastText = ''
     let chunkCount = 0
-    const stream = query({ prompt: task.description, options })
+    const stream = query({ prompt: inputStream(), options })
 
     for await (const chunk of stream as AsyncIterable<unknown>) {
       chunkCount += 1
@@ -139,5 +202,45 @@ export class ClaudeAdapter extends AgentAdapter {
 
     if (typeof record.message === 'string') return { text: record.message, isFinal: false }
     return { text: '', isFinal: false }
+  }
+
+  private evaluateToolAccess(
+    workspacePath: string,
+    toolName: string,
+    input: unknown
+  ): { allowed: boolean; reason: string } {
+    if (!['Read', 'Write', 'Edit'].includes(toolName)) {
+      return { allowed: false, reason: 'tool_not_allowed' }
+    }
+
+    const pathValue = this.extractPath(input)
+    if (!pathValue) {
+      return { allowed: false, reason: 'missing_path' }
+    }
+
+    const resolved = resolve(workspacePath, pathValue)
+    const normalizedWorkspace = resolve(workspacePath)
+    const allowed = resolved === normalizedWorkspace || resolved.startsWith(`${normalizedWorkspace}/`)
+
+    return {
+      allowed,
+      reason: allowed ? 'within_workspace' : 'outside_workspace'
+    }
+  }
+
+  private extractPath(input: unknown): string | null {
+    if (!input || typeof input !== 'object') return null
+    const record = input as Record<string, unknown>
+    const candidates = [
+      record.path,
+      record.file_path,
+      record.filePath,
+      record.target_path,
+      record.directory
+    ]
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim()) return candidate.trim()
+    }
+    return null
   }
 }

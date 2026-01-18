@@ -4,6 +4,7 @@ import { Settings } from './Settings'
 
 const DEFAULT_SETTINGS: Settings = {
   activeAgent: 'mock',
+  activeProjectId: '',
   workspacePath: '',
   planner: {
     agent: 'mock'

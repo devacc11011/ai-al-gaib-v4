@@ -18,6 +18,16 @@ function App(): React.JSX.Element {
   const [secrets, setSecrets] = useState<SecretsShape | null>(null)
   const [secretsSaving, setSecretsSaving] = useState(false)
   const [streamText, setStreamText] = useState('')
+  const [projects, setProjects] = useState<ProjectShape[]>([])
+  const [projectName, setProjectName] = useState('')
+  const [projectWorkspace, setProjectWorkspace] = useState('')
+  const [toolRequests, setToolRequests] = useState<Array<{
+    id: string
+    taskId: string
+    agent: string
+    toolName: string
+    input: unknown
+  }>>([])
 
   useEffect(() => {
     const unsubscribe = window.api.orchestrator.onEvent((event) => {
@@ -27,6 +37,16 @@ function App(): React.JSX.Element {
         if (typeof payload.text === 'string') {
           setStreamText((prev) => `${prev}${payload.text}`)
         }
+      }
+      if (event.type === 'tool:request' && event.data && typeof event.data === 'object') {
+        const payload = event.data as {
+          id: string
+          taskId: string
+          agent: string
+          toolName: string
+          input: unknown
+        }
+        setToolRequests((prev) => [...prev, payload])
       }
     })
 
@@ -42,6 +62,10 @@ function App(): React.JSX.Element {
       }
       setSettings(normalized)
     })
+  }, [])
+
+  useEffect(() => {
+    window.api.projects.list().then((data) => setProjects(data))
   }, [])
 
   useEffect(() => {
@@ -92,6 +116,42 @@ function App(): React.JSX.Element {
     setSettings({ ...settings, workspacePath: picked })
   }
 
+  const handlePickProjectWorkspace = async (): Promise<void> => {
+    const picked = await window.api.workspace.pick()
+    if (!picked) return
+    setProjectWorkspace(picked)
+  }
+
+  const handleCreateProject = async (): Promise<void> => {
+    if (!projectName || !projectWorkspace) return
+    const created = await window.api.projects.create({
+      name: projectName,
+      workspacePath: projectWorkspace
+    })
+    if (!created) return
+    const list = await window.api.projects.list()
+    setProjects(list)
+    setProjectName('')
+    setProjectWorkspace('')
+  }
+
+  const handleSelectProject = async (projectId: string): Promise<void> => {
+    if (!settings) return
+    const updated = await window.api.projects.select(projectId)
+    setSettings(updated)
+  }
+
+  const handleClearProject = async (): Promise<void> => {
+    if (!settings) return
+    const updated = await window.api.settings.update({ activeProjectId: '' })
+    setSettings(updated)
+  }
+
+  const handleToolDecision = async (id: string, allow: boolean): Promise<void> => {
+    await window.api.tools.respond({ id, allow })
+    setToolRequests((prev) => prev.filter((item) => item.id !== id))
+  }
+
   const resolveModelValue = (value: string | undefined, options: { value: string }[]): string => {
     if (!value) return ''
     return options.some((option) => option.value === value) ? value : 'custom'
@@ -118,6 +178,69 @@ function App(): React.JSX.Element {
     )
   }
 
+  if (settings && !settings.activeProjectId) {
+    return (
+      <div className="app-shell">
+        <header className="app-header">
+          <div>
+            <div className="app-title">Select Project</div>
+            <div className="app-subtitle">Choose a workspace to get started</div>
+          </div>
+        </header>
+
+        <section className="app-panel">
+          <div className="app-label">Recent Projects</div>
+          {projects.length === 0 && <div className="event-empty">No projects yet.</div>}
+          {projects.map((project) => (
+            <div key={project.id} className="project-row">
+              <div>
+                <div className="project-name">{project.name}</div>
+                <div className="project-path">{project.workspacePath}</div>
+              </div>
+              <button type="button" onClick={() => handleSelectProject(project.id)}>
+                Open
+              </button>
+            </div>
+          ))}
+        </section>
+
+        <section className="app-panel">
+          <div className="app-label">Create Project</div>
+          <div className="settings-grid">
+            <label>
+              Project Name
+              <input
+                type="text"
+                placeholder="Project name"
+                value={projectName}
+                onChange={(event) => setProjectName(event.target.value)}
+              />
+            </label>
+
+            <label>
+              Workspace
+              <div className="inline-row">
+                <input
+                  type="text"
+                  placeholder="/path/to/project"
+                  value={projectWorkspace}
+                  onChange={(event) => setProjectWorkspace(event.target.value)}
+                />
+                <button type="button" onClick={handlePickProjectWorkspace}>
+                  Pick…
+                </button>
+              </div>
+            </label>
+
+            <button type="button" onClick={handleCreateProject}>
+              Create Project
+            </button>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -127,6 +250,14 @@ function App(): React.JSX.Element {
         </div>
         <div className="app-status">{statusLine}</div>
       </header>
+      {settings?.activeProjectId && (
+        <div className="project-banner">
+          <div className="project-label">Project active</div>
+          <button type="button" onClick={handleClearProject}>
+            Switch Project
+          </button>
+        </div>
+      )}
 
       <section className="app-panel">
         <label className="app-label" htmlFor="prompt">
@@ -145,6 +276,31 @@ function App(): React.JSX.Element {
           Open Stream Window
         </button>
       </section>
+
+      {toolRequests.length > 0 && (
+        <div className="modal-backdrop">
+          <div className="modal-card">
+            <div className="app-label">Tool Permission</div>
+            {toolRequests.map((req) => (
+              <div key={req.id} className="tool-request">
+                <div className="tool-title">
+                  {req.agent} 요청: {req.toolName}
+                </div>
+                <div className="tool-meta">task: {req.taskId}</div>
+                <pre className="tool-input">{JSON.stringify(req.input, null, 2)}</pre>
+                <div className="tool-actions">
+                  <button type="button" onClick={() => handleToolDecision(req.id, true)}>
+                    Allow
+                  </button>
+                  <button type="button" onClick={() => handleToolDecision(req.id, false)}>
+                    Deny
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <section className="app-panel">
         <div className="app-label">Settings</div>
@@ -182,6 +338,7 @@ function App(): React.JSX.Element {
                 </button>
               </div>
             </label>
+
 
             <label>
               Planner Agent

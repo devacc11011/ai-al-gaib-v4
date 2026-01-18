@@ -1,4 +1,5 @@
 import { join, resolve } from 'path'
+import { promises as fs } from 'fs'
 import { ContextManager } from '../context/ContextManager'
 import { MockAdapter } from '../agents/mock/MockAdapter'
 import { ClaudeAdapter } from '../agents/claude/ClaudeAdapter'
@@ -15,6 +16,8 @@ import { Settings } from '../settings/Settings'
 import { SettingsStore } from '../settings/SettingsStore'
 import { SecretsStore, Secrets } from '../settings/SecretsStore'
 import { Logger } from '../logging/Logger'
+import { ProjectStore, Project } from '../projects/ProjectStore'
+import { ToolApprovalManager } from './ToolApprovalManager'
 
 export class Orchestrator {
   private eventBus = new EventBus()
@@ -26,15 +29,25 @@ export class Orchestrator {
   private secretsStore: SecretsStore
   private adapters: AgentRegistry
   private logger?: Logger
+  private projectStore: ProjectStore
+  private toolApproval: ToolApprovalManager
 
   constructor(private workspaceRoot: string) {
     const contextPath = join(this.workspaceRoot, '.context')
     this.contextManager = new ContextManager(contextPath)
     this.settingsStore = new SettingsStore(contextPath)
     this.secretsStore = new SecretsStore(contextPath)
+    this.projectStore = new ProjectStore(contextPath)
 
     this.adapters = new AgentRegistry()
-    this.executor = new Executor(this.eventBus, this.contextManager, this.adapters)
+    this.toolApproval = new ToolApprovalManager(this.eventBus)
+    this.executor = new Executor(
+      this.eventBus,
+      this.contextManager,
+      this.adapters,
+      this.logger,
+      (payload) => this.toolApproval.request(payload)
+    )
   }
 
   onEvent(listener: (event: OrchestratorEvent) => void): () => void {
@@ -58,18 +71,42 @@ export class Orchestrator {
     return this.secretsStore.update(partial)
   }
 
+  async listProjects(): Promise<Project[]> {
+    return this.projectStore.list()
+  }
+
+  async createProject(name: string, workspacePath: string): Promise<Project> {
+    return this.projectStore.create(name, workspacePath)
+  }
+
+  async selectProject(projectId: string): Promise<Settings> {
+    return this.settingsStore.update({ activeProjectId: projectId })
+  }
+
+  resolveToolApproval(id: string, allow: boolean): void {
+    this.toolApproval.resolve(id, allow)
+  }
+
   async run(prompt: string): Promise<{ planId: string; summary: string }> {
     const settings = await this.settingsStore.load()
-    const workspacePath = settings.workspacePath
-      ? resolve(settings.workspacePath)
-      : this.workspaceRoot
+    const project = await this.resolveActiveProject(settings)
+    const workspacePath = project?.workspacePath
+      ? resolve(project.workspacePath)
+      : settings.workspacePath
+        ? resolve(settings.workspacePath)
+        : this.workspaceRoot
 
-    this.contextManager = new ContextManager(join(workspacePath, '.context'))
+    this.contextManager = new ContextManager(join(workspacePath, '.context'), this.logger)
     await this.contextManager.ensure()
 
     const runStamp = new Date().toISOString().replace(/[:.]/g, '-')
     this.logger = new Logger(join(workspacePath, '.logs'), `run-${runStamp}.log`)
-    await this.logger.log('info', 'run:started', { prompt, workspacePath })
+    await this.logger.log('info', 'planner:input_received', {
+      prompt,
+      workspacePath,
+      projectId: project?.id ?? null,
+      projectName: project?.name ?? null
+    })
 
     const secrets = await this.secretsStore.load()
     this.applySecrets(secrets)
@@ -109,14 +146,21 @@ export class Orchestrator {
     this.adapters.register(new ClaudeAdapter(claudeSettings))
     this.adapters.register(new CodexAdapter(codexSettings))
     this.adapters.register(new GeminiAdapter(geminiSettings))
-    this.executor = new Executor(this.eventBus, this.contextManager, this.adapters, this.logger)
+    this.executor = new Executor(
+      this.eventBus,
+      this.contextManager,
+      this.adapters,
+      this.logger,
+      (payload) => this.toolApproval.request(payload)
+    )
 
     const plannerTasks = await this.generatePlanTasks(
       prompt,
       plannerAgent,
       settings,
       executorAgent,
-      workspacePath
+      workspacePath,
+      project
     )
     const { plan, graph } = plannerTasks
       ? this.planner.buildPlanFromTasks(plannerTasks)
@@ -128,10 +172,18 @@ export class Orchestrator {
       data: {
         planId: plan.id,
         tasks: plan.tasks.map((task) => task.id),
-        workspacePath
+        workspacePath,
+        projectId: project?.id ?? null
       }
     })
-    await this.logger.log('info', 'plan:created', { planId: plan.id, tasks: plan.tasks.map((t) => t.id) })
+    await this.logger.log('info', 'planner:plan_created', {
+      planId: plan.id,
+      tasks: plan.tasks.map((t) => t.id)
+    })
+    await this.logger.log('info', 'executor:plan_detected', {
+      planId: plan.id,
+      taskCount: plan.tasks.length
+    })
 
     for (const task of plan.tasks) {
       await this.contextManager.writeTask(task)
@@ -165,6 +217,10 @@ export class Orchestrator {
       for (const task of readyTasks) {
         const result = await this.executor.execute(task)
         results.push(result)
+        await this.logger?.log('info', 'planner:executor_result_received', {
+          taskId: result.id,
+          status: result.status
+        })
       }
     }
 
@@ -183,7 +239,10 @@ export class Orchestrator {
         timestamp: new Date().toISOString(),
         data: { planId: plan.id, summary: aggregated.summary }
       })
-      await this.logger.log('info', 'run:completed', { planId: plan.id })
+      await this.logger.log('info', 'planner:execution_completed', {
+        planId: plan.id,
+        taskCount: results.length
+      })
     }
 
     return { planId: plan.id, summary: aggregated.summary }
@@ -206,7 +265,8 @@ export class Orchestrator {
     plannerAgent: AgentType,
     settings: Settings,
     executorAgent: AgentType,
-    workspacePath: string
+    workspacePath: string,
+    project: Project | null
   ): Promise<Task[] | null> {
     if (plannerAgent === 'mock') return null
 
@@ -218,9 +278,10 @@ export class Orchestrator {
       return null
     }
 
-    const planPrompt = this.buildPlanPrompt(prompt)
+    const priorContext = await this.loadPlannerContext(project, workspacePath)
+    const planPrompt = this.buildPlanPrompt(prompt, priorContext)
     const planTask: Task = {
-      id: 'planner-001',
+      id: `planner-${randomUUID()}`,
       title: 'Planner',
       agent: plannerAgent,
       status: 'pending',
@@ -233,6 +294,8 @@ export class Orchestrator {
 
     const result = await plannerAdapter.execute(planTask)
     await this.logger?.log('info', 'planner:result', { status: result.status })
+
+    await this.appendPlannerContext(project, workspacePath, prompt, result.summary)
 
     const parsed = this.parsePlanFromText(result.summary, executorAgent, workspacePath)
     if (!parsed) {
@@ -279,13 +342,18 @@ export class Orchestrator {
     return null
   }
 
-  private buildPlanPrompt(prompt: string): string {
+  private buildPlanPrompt(prompt: string, priorContext: string | null): string {
+    const contextBlock = priorContext
+      ? ['Previous planner context:', priorContext].join('\n')
+      : 'Previous planner context: (none)'
+
     return [
       'You are a planner. Generate a JSON plan for execution tasks.',
       'Return ONLY valid JSON with this shape:',
       '{\"tasks\":[{\"title\":\"...\",\"description\":\"...\",\"dependencies\":[1,2]}]}',
       'Dependencies use 1-based indices into the tasks array. Use 0-2 dependencies per task.',
       'Limit to 2-5 tasks. Use concise titles.',
+      contextBlock,
       `User request: ${prompt}`
     ].join('\n')
   }
@@ -348,5 +416,55 @@ export class Orchestrator {
     }
 
     return null
+  }
+
+  private async resolveActiveProject(settings: Settings): Promise<Project | null> {
+    if (!settings.activeProjectId) return null
+    return this.projectStore.get(settings.activeProjectId)
+  }
+
+  private async plannerContextPath(
+    project: Project | null,
+    workspacePath: string
+  ): Promise<string> {
+    const projectId = project?.id ?? 'default'
+    const contextDir = join(workspacePath, '.context', 'projects', projectId)
+    await fs.mkdir(contextDir, { recursive: true })
+    return join(contextDir, 'planner-context.md')
+  }
+
+  private async loadPlannerContext(
+    project: Project | null,
+    workspacePath: string
+  ): Promise<string | null> {
+    const path = await this.plannerContextPath(project, workspacePath)
+    try {
+      const data = await fs.readFile(path, 'utf-8')
+      return data.trim() || null
+    } catch {
+      return null
+    }
+  }
+
+  private async appendPlannerContext(
+    project: Project | null,
+    workspacePath: string,
+    prompt: string,
+    summary: string
+  ): Promise<void> {
+    const path = await this.plannerContextPath(project, workspacePath)
+    const entry = [
+      `## ${new Date().toISOString()}`,
+      '',
+      '### Prompt',
+      prompt.trim(),
+      '',
+      '### Result',
+      summary.trim(),
+      '',
+      '---',
+      ''
+    ].join('\n')
+    await fs.appendFile(path, `${entry}\n`, 'utf-8')
   }
 }

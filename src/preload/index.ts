@@ -22,6 +22,16 @@ const api = {
   workspace: {
     pick: (): Promise<string | null> => ipcRenderer.invoke('workspace:pick')
   },
+  projects: {
+    list: (): Promise<unknown> => ipcRenderer.invoke('projects:list'),
+    create: (payload: { name: string; workspacePath: string }): Promise<unknown> =>
+      ipcRenderer.invoke('projects:create', payload),
+    select: (projectId: string): Promise<unknown> => ipcRenderer.invoke('projects:select', projectId)
+  },
+  tools: {
+    respond: (payload: { id: string; allow: boolean }): Promise<boolean> =>
+      ipcRenderer.invoke('tool:respond', payload)
+  },
   secrets: {
     get: (): Promise<unknown> => ipcRenderer.invoke('secrets:get'),
     update: (partial: unknown): Promise<unknown> => ipcRenderer.invoke('secrets:update', partial)

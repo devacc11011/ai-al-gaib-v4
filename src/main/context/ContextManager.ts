@@ -2,8 +2,10 @@ import { promises as fs } from 'fs'
 import { dirname, join } from 'path'
 import { Task, TaskResult } from '../types'
 
+import { Logger } from '../logging/Logger'
+
 export class ContextManager {
-  constructor(private baseDir: string) {}
+  constructor(private baseDir: string, private logger?: Logger) {}
 
   async ensure(): Promise<void> {
     await fs.mkdir(this.tasksDir(), { recursive: true })
@@ -13,19 +15,25 @@ export class ContextManager {
   }
 
   async writeTask(task: Task): Promise<string> {
-    const filePath = join(this.tasksDir(), `${task.id}.md`)
+    const filePath = join(this.taskDir(task.id), 'task.md')
     await this.writeFile(filePath, this.taskMarkdown(task))
+    await this.logger?.log('info', 'task:md_created', { taskId: task.id, path: filePath })
     return filePath
   }
 
   async writeResult(result: TaskResult): Promise<string> {
-    const filePath = join(this.tasksDir(), `${result.id}-result.md`)
+    const filePath = join(this.taskDir(result.id), 'result.md')
     await this.writeFile(filePath, this.resultMarkdown(result))
+    await this.logger?.log('info', 'result:md_created', { taskId: result.id, path: filePath })
     return filePath
   }
 
   private tasksDir(): string {
     return join(this.baseDir, 'tasks')
+  }
+
+  private taskDir(taskId: string): string {
+    return join(this.tasksDir(), taskId)
   }
 
   private sessionsDir(): string {
