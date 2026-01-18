@@ -96,13 +96,16 @@ export class ClaudeAdapter extends AgentAdapter {
     }
 
     async function* inputStream() {
-      yield {
-        type: 'user',
-        message: {
-          role: 'user',
-          content: task.description
-        }
+      const message = {
+        role: 'user',
+        content: task.description
       }
+      // SDKUserMessage requires session_id and parent_tool_use_id in streaming mode.
+      yield {
+        ...message,
+        session_id: 'session-1',
+        parent_tool_use_id: null
+      } as unknown
     }
 
     await this.logger?.log('info', 'claude:execute', {
@@ -115,7 +118,7 @@ export class ClaudeAdapter extends AgentAdapter {
 
     let lastText = ''
     let chunkCount = 0
-    const stream = query({ prompt: inputStream(), options })
+    const stream = query({ prompt: inputStream() as AsyncIterable<unknown>, options })
 
     for await (const chunk of stream as AsyncIterable<unknown>) {
       chunkCount += 1

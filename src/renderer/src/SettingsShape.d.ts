@@ -1,13 +1,13 @@
 interface SettingsShape {
-  activeAgent: 'mock' | 'claude-code' | 'codex' | 'gemini-cli'
+  activeAgent: 'claude-code' | 'codex' | 'gemini-cli'
   activeProjectId?: string
   workspacePath?: string
   planner?: {
-    agent: 'mock' | 'claude-code' | 'codex' | 'gemini-cli'
+    agent: 'claude-code' | 'codex' | 'gemini-cli'
     model?: string
   }
   executor?: {
-    agent: 'mock' | 'claude-code' | 'codex' | 'gemini-cli'
+    agent: 'claude-code' | 'codex' | 'gemini-cli'
     model?: string
   }
   claude?: {

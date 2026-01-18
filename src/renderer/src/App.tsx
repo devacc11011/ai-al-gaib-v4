@@ -34,6 +34,7 @@ function App(): React.JSX.Element {
   >([])
   const [activePanel, setActivePanel] = useState<'command' | 'workspace' | 'plan'>('command')
   const [showSettings, setShowSettings] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceEntryShape[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [fileContent, setFileContent] = useState<string>('')
@@ -175,6 +176,15 @@ function App(): React.JSX.Element {
   const handleToolDecision = async (id: string, allow: boolean): Promise<void> => {
     await window.api.tools.respond({ id, allow })
     setToolRequests((prev) => prev.filter((item) => item.id !== id))
+  }
+
+  const handlePanelClick = (panel: 'command' | 'workspace' | 'plan') => {
+    if (panel === activePanel) {
+      setSidebarCollapsed((collapsed) => !collapsed)
+      return
+    }
+    setActivePanel(panel)
+    setSidebarCollapsed(false)
   }
 
   const handleSelectFile = async (path: string): Promise<void> => {
@@ -329,25 +339,25 @@ function App(): React.JSX.Element {
   }
 
   return (
-    <div className="app-root">
+    <div className={sidebarCollapsed ? 'app-root sidebar-collapsed' : 'app-root'}>
       <aside className="activity-bar">
         <button
           className={activePanel === 'command' ? 'active icon-button' : 'icon-button'}
-          onClick={() => setActivePanel('command')}
+          onClick={() => handlePanelClick('command')}
           title="Command"
         >
           ▶
         </button>
         <button
           className={activePanel === 'workspace' ? 'active icon-button' : 'icon-button'}
-          onClick={() => setActivePanel('workspace')}
+          onClick={() => handlePanelClick('workspace')}
           title="Workspace"
         >
           📁
         </button>
         <button
           className={activePanel === 'plan' ? 'active icon-button' : 'icon-button'}
-          onClick={() => setActivePanel('plan')}
+          onClick={() => handlePanelClick('plan')}
           title="Plan/Tasks"
         >
           ☰
@@ -355,36 +365,11 @@ function App(): React.JSX.Element {
       </aside>
 
       <aside className="sidebar">
-        {activePanel === 'command' && (
-          <>
-            <div className="sidebar-header">Workspace</div>
-            <div className="sidebar-card">
-              <div className="sidebar-title">{currentProject?.name ?? 'Untitled'}</div>
-              <div className="sidebar-subtitle">{currentProject?.workspacePath ?? '—'}</div>
-            </div>
-
-            <div className="sidebar-header">Command</div>
-            <div className="sidebar-card">
-              <label className="app-label" htmlFor="prompt">
-                Prompt
-              </label>
-              <textarea
-                id="prompt"
-                value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
-                rows={4}
-              />
-              <div className="panel-actions">
-                <button type="button" onClick={handleRun} disabled={running}>
-                  {running ? 'Running...' : 'Run Core Pipeline'}
-                </button>
-                <button type="button" onClick={() => window.api.orchestrator.openStreamWindow()}>
-                  Stream Window
-                </button>
-              </div>
-            </div>
-          </>
-        )}
+        <div className="sidebar-header">Workspace</div>
+        <div className="sidebar-card compact">
+          <div className="sidebar-title">{currentProject?.name ?? 'Untitled'}</div>
+          <div className="sidebar-subtitle">{currentProject?.workspacePath ?? '—'}</div>
+        </div>
 
         {activePanel === 'plan' && (
           <>
@@ -572,7 +557,6 @@ function App(): React.JSX.Element {
                           })
                         }
                       >
-                        <option value="mock">mock</option>
                         <option value="claude-code">claude-code</option>
                         <option value="codex">codex</option>
                         <option value="gemini-cli">gemini-cli</option>
@@ -610,7 +594,6 @@ function App(): React.JSX.Element {
                           })
                         }
                       >
-                        <option value="mock">mock</option>
                         <option value="claude-code">claude-code</option>
                         <option value="codex">codex</option>
                         <option value="gemini-cli">gemini-cli</option>
@@ -675,7 +658,6 @@ function App(): React.JSX.Element {
                           })
                         }
                       >
-                        <option value="mock">mock</option>
                         <option value="claude-code">claude-code</option>
                         <option value="codex">codex</option>
                         <option value="gemini-cli">gemini-cli</option>
@@ -762,18 +744,6 @@ function App(): React.JSX.Element {
                       />
                     </label>
 
-                    <label>
-                      Gemini API Key
-                      <input
-                        type="password"
-                        placeholder="AIza..."
-                        value={secrets.geminiApiKey ?? ''}
-                        onChange={(event) =>
-                          setSecrets({ ...secrets, geminiApiKey: event.target.value })
-                        }
-                      />
-                    </label>
-
                     <button type="button" onClick={handleSaveSecrets} disabled={secretsSaving}>
                       {secretsSaving ? 'Saving...' : 'Save Keys'}
                     </button>
@@ -781,137 +751,6 @@ function App(): React.JSX.Element {
                 )}
               </section>
 
-              <section className="settings-section">
-                <div className="app-label">Model Defaults</div>
-                {settings && (
-                  <div className="settings-grid">
-                    <label>
-                      Claude Model
-                      <select
-                        value={resolveModelValue(settings.claude?.model, claudeModels)}
-                        onChange={(event) => {
-                          const value = event.target.value
-                          setSettings({
-                            ...settings,
-                            claude: { ...settings.claude, model: value === 'custom' ? '' : value }
-                          })
-                        }}
-                      >
-                        <option value="">(default)</option>
-                        {claudeModels.map((model) => (
-                          <option key={model.value} value={model.value}>
-                            {model.label}
-                          </option>
-                        ))}
-                        <option value="custom">Custom...</option>
-                      </select>
-                      {resolveModelValue(settings.claude?.model, claudeModels) === 'custom' && (
-                        <input
-                          type="text"
-                          placeholder="custom model id"
-                          value={settings.claude?.model ?? ''}
-                          onChange={(event) =>
-                            setSettings({
-                              ...settings,
-                              claude: { ...settings.claude, model: event.target.value }
-                            })
-                          }
-                        />
-                      )}
-                    </label>
-
-                    <label>
-                      Codex Model
-                      <select
-                        value={resolveModelValue(settings.codex?.model, codexModels)}
-                        onChange={(event) => {
-                          const value = event.target.value
-                          setSettings({
-                            ...settings,
-                            codex: { ...settings.codex, model: value === 'custom' ? '' : value }
-                          })
-                        }}
-                      >
-                        <option value="">(default)</option>
-                        {codexModels.map((model) => (
-                          <option key={model.value} value={model.value}>
-                            {model.label}
-                          </option>
-                        ))}
-                        <option value="custom">Custom...</option>
-                      </select>
-                      {resolveModelValue(settings.codex?.model, codexModels) === 'custom' && (
-                        <input
-                          type="text"
-                          placeholder="custom model id"
-                          value={settings.codex?.model ?? ''}
-                          onChange={(event) =>
-                            setSettings({
-                              ...settings,
-                              codex: { ...settings.codex, model: event.target.value }
-                            })
-                          }
-                        />
-                      )}
-                    </label>
-
-                    <label>
-                      Gemini Model
-                      <select
-                        value={resolveModelValue(settings.gemini?.model, geminiModels)}
-                        onChange={(event) => {
-                          const value = event.target.value
-                          setSettings({
-                            ...settings,
-                            gemini: { ...settings.gemini, model: value === 'custom' ? '' : value }
-                          })
-                        }}
-                      >
-                        <option value="">(default)</option>
-                        {geminiModels.map((model) => (
-                          <option key={model.value} value={model.value}>
-                            {model.label}
-                          </option>
-                        ))}
-                        <option value="custom">Custom...</option>
-                      </select>
-                      {resolveModelValue(settings.gemini?.model, geminiModels) === 'custom' && (
-                        <input
-                          type="text"
-                          placeholder="custom model id"
-                          value={settings.gemini?.model ?? ''}
-                          onChange={(event) =>
-                            setSettings({
-                              ...settings,
-                              gemini: { ...settings.gemini, model: event.target.value }
-                            })
-                          }
-                        />
-                      )}
-                    </label>
-
-                    <label>
-                      Gemini Output
-                      <select
-                        value={settings.gemini?.outputFormat ?? 'stream-json'}
-                        onChange={(event) =>
-                          setSettings({
-                            ...settings,
-                            gemini: {
-                              ...settings.gemini,
-                              outputFormat: event.target.value as SettingsShape['gemini']['outputFormat']
-                            }
-                          })
-                        }
-                      >
-                        <option value="stream-json">stream-json</option>
-                        <option value="json">json</option>
-                        <option value="jsonl">jsonl</option>
-                      </select>
-                    </label>
-                  </div>
-                )}
-              </section>
             </div>
           </div>
         </div>

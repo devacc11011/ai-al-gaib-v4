@@ -17,7 +17,7 @@ interface ProjectIndex {
 export class ProjectStore {
   private indexPath: string
 
-  constructor(private baseDir: string) {
+  constructor(baseDir: string) {
     this.indexPath = join(baseDir, 'projects.json')
   }
 

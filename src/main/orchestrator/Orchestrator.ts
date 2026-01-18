@@ -130,13 +130,11 @@ export class Orchestrator {
     this.applySecrets(secrets)
     await this.logger.log('info', 'secrets:loaded', {
       anthropicKey: Boolean(secrets.anthropicApiKey),
-      openaiKey: Boolean(secrets.openaiApiKey),
-      geminiKey: Boolean(secrets.geminiApiKey)
+      openaiKey: Boolean(secrets.openaiApiKey)
     })
     await this.logger.log('info', 'env:keys', {
       anthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
-      openaiKey: Boolean(process.env.OPENAI_API_KEY),
-      geminiKey: Boolean(process.env.GEMINI_API_KEY)
+      openaiKey: Boolean(process.env.OPENAI_API_KEY)
     })
 
     const plannerAgent = settings.planner?.agent ?? settings.activeAgent
@@ -272,9 +270,6 @@ export class Orchestrator {
     }
     if (secrets.openaiApiKey && !process.env.OPENAI_API_KEY) {
       process.env.OPENAI_API_KEY = secrets.openaiApiKey
-    }
-    if (secrets.geminiApiKey && !process.env.GEMINI_API_KEY) {
-      process.env.GEMINI_API_KEY = secrets.geminiApiKey
     }
   }
 

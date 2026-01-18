@@ -4,7 +4,6 @@ import { dirname, join } from 'path'
 export interface Secrets {
   anthropicApiKey?: string
   openaiApiKey?: string
-  geminiApiKey?: string
 }
 
 const DEFAULT_SECRETS: Secrets = {}
@@ -41,10 +40,6 @@ export class SecretsStore {
     if (partial.openaiApiKey !== undefined) {
       normalized.openaiApiKey = partial.openaiApiKey.trim() || undefined
     }
-    if (partial.geminiApiKey !== undefined) {
-      normalized.geminiApiKey = partial.geminiApiKey.trim() || undefined
-    }
-
     const next = { ...current, ...normalized }
     await this.save(next)
     return next

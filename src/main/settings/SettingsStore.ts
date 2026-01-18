@@ -3,14 +3,14 @@ import { dirname, join } from 'path'
 import { Settings } from './Settings'
 
 const DEFAULT_SETTINGS: Settings = {
-  activeAgent: 'mock',
+  activeAgent: 'claude-code',
   activeProjectId: '',
   workspacePath: '',
   planner: {
-    agent: 'mock'
+    agent: 'claude-code'
   },
   executor: {
-    agent: 'mock'
+    agent: 'claude-code'
   },
   claude: {
     permissionMode: 'acceptEdits',
@@ -35,10 +35,14 @@ export class SettingsStore {
     try {
       const data = await fs.readFile(this.settingsPath(), 'utf-8')
       const parsed = JSON.parse(data) as Settings
-      return {
+      const merged: Settings = {
         ...DEFAULT_SETTINGS,
         ...parsed
       }
+      if (merged.activeAgent === 'mock') merged.activeAgent = 'claude-code'
+      if (merged.planner?.agent === 'mock') merged.planner.agent = 'claude-code'
+      if (merged.executor?.agent === 'mock') merged.executor.agent = 'claude-code'
+      return merged
     } catch {
       await this.save(DEFAULT_SETTINGS)
       return DEFAULT_SETTINGS
@@ -55,8 +59,14 @@ export class SettingsStore {
     const next: Settings = {
       ...current,
       ...partial,
-      planner: { ...current.planner, ...partial.planner },
-      executor: { ...current.executor, ...partial.executor },
+      planner: {
+        agent: partial.planner?.agent ?? current.planner?.agent ?? 'claude-code',
+        model: partial.planner?.model ?? current.planner?.model
+      },
+      executor: {
+        agent: partial.executor?.agent ?? current.executor?.agent ?? 'claude-code',
+        model: partial.executor?.model ?? current.executor?.model
+      },
       claude: { ...current.claude, ...partial.claude },
       codex: { ...current.codex, ...partial.codex },
       gemini: { ...current.gemini, ...partial.gemini }

@@ -16,6 +16,10 @@ body {
   color: #d4d4d4;
 }
 
+.app-root.sidebar-collapsed {
+  grid-template-columns: 52px 0 1fr;
+}
+
 .activity-bar {
   background: #333333;
   border-right: 1px solid #2a2a2a;
@@ -55,9 +59,16 @@ body {
   background: #252526;
   border-right: 1px solid #1f1f1f;
   padding: 12px;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   overflow: auto;
+}
+
+.sidebar-collapsed .sidebar {
+  padding: 0;
+  border-right: none;
+  overflow: hidden;
 }
 
 .sidebar-header {
@@ -74,6 +85,11 @@ body {
   padding: 12px;
   display: grid;
   gap: 10px;
+}
+
+.sidebar-card.compact {
+  padding: 10px 12px;
+  gap: 6px;
 }
 
 .file-list {
@@ -187,6 +203,14 @@ body {
   margin-left: auto;
 }
 
+.ghost-button {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #3a3a3a;
+  background: transparent;
+  color: #c5c5c5;
+}
+
 .top-project select {
   width: 180px;
 }
@@ -221,6 +245,9 @@ body {
   gap: 16px;
   overflow: auto;
   align-content: start;
+  justify-content: start;
+  align-items: start;
+  justify-items: stretch;
 }
 
 .panel-card {
@@ -230,7 +257,8 @@ body {
   padding: 14px 16px 16px;
   display: grid;
   gap: 12px;
-  max-width: 980px;
+  width: 100%;
+  max-width: none;
 }
 
 .panel-title {
@@ -429,6 +457,8 @@ button:disabled {
   padding: 20px;
   display: grid;
   gap: 14px;
+  max-height: 85vh;
+  overflow: auto;
 }
 
 .settings-header {
