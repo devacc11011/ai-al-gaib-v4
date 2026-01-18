@@ -21,7 +21,8 @@ const DEFAULT_SETTINGS: Settings = {
   codex: {},
   gemini: {
     outputFormat: 'stream-json'
-  }
+  },
+  usagePricing: {}
 }
 
 export class SettingsStore {
@@ -69,7 +70,8 @@ export class SettingsStore {
       },
       claude: { ...current.claude, ...partial.claude },
       codex: { ...current.codex, ...partial.codex },
-      gemini: { ...current.gemini, ...partial.gemini }
+      gemini: { ...current.gemini, ...partial.gemini },
+      usagePricing: { ...current.usagePricing, ...partial.usagePricing }
     }
     await this.save(next)
     return next

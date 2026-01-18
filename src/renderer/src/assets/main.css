@@ -169,10 +169,26 @@ body {
   border-bottom: 1px solid #2a2a2a;
   display: grid;
   gap: 4px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  color: inherit;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
 }
 
 .sidebar-event:last-child {
   border-bottom: none;
+}
+
+.sidebar-event:hover {
+  background: rgba(14, 99, 156, 0.12);
+}
+
+.sidebar-event.selected {
+  border-color: #0e639c;
+  background: rgba(14, 99, 156, 0.2);
 }
 
 .main-frame {
@@ -243,6 +259,7 @@ body {
   padding: 12px 18px 20px;
   display: grid;
   gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
   overflow: auto;
   align-content: start;
   justify-content: start;
@@ -285,6 +302,10 @@ body {
   border: 1px solid #1f1f1f;
   max-width: 960px;
   margin: 24px auto;
+}
+
+.app-shell-wide {
+  max-width: 1280px;
 }
 
 .app-header {
@@ -370,6 +391,11 @@ button:disabled {
   white-space: pre-wrap;
   font-size: 12px;
   color: #c5c5c5;
+}
+
+.event-item.selected {
+  border-color: #0e639c;
+  background: rgba(14, 99, 156, 0.12);
 }
 
 .event-empty {
@@ -554,6 +580,42 @@ button:disabled {
   gap: 6px;
   font-size: 12px;
   color: #c5c5c5;
+}
+
+.usage-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.usage-card {
+  border: 1px solid #2a2a2a;
+  background: #161616;
+  border-radius: 8px;
+  padding: 10px;
+  display: grid;
+  gap: 6px;
+}
+
+.usage-title {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9b9b9b;
+}
+
+.usage-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: #c5c5c5;
+}
+
+.usage-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 input[type='password'] {

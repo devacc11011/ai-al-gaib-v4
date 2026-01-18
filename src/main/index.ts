@@ -128,10 +128,17 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(menu)
   orchestrator = new Orchestrator(process.cwd())
 
+  const safeSend = (window: BrowserWindow | null, channel: string, payload: unknown): void => {
+    if (!window || window.isDestroyed()) return
+    const contents = window.webContents
+    if (contents.isDestroyed()) return
+    contents.send(channel, payload)
+  }
+
   unsubscribeEvents?.()
   unsubscribeEvents = orchestrator.onEvent((event) => {
-    mainWindow.webContents.send('orchestrator:event', event)
-    streamWindow?.webContents.send('orchestrator:event', event)
+    safeSend(mainWindow, 'orchestrator:event', event)
+    safeSend(streamWindow, 'orchestrator:event', event)
   })
 
   ipcMain.handle('orchestrator:run', async (_event, prompt: string) => {
@@ -208,6 +215,16 @@ app.whenReady().then(() => {
   ipcMain.handle('secrets:update', async (_event, partial) => {
     if (!orchestrator) return null
     return orchestrator.updateSecrets(partial)
+  })
+
+  ipcMain.handle('usage:get', async () => {
+    if (!orchestrator) return null
+    return orchestrator.getUsageSummary()
+  })
+
+  ipcMain.handle('usage:reset', async () => {
+    if (!orchestrator) return null
+    return orchestrator.resetUsage()
   })
 
   app.on('activate', function () {

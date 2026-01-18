@@ -19,6 +19,7 @@ import { Logger } from '../logging/Logger'
 import { ProjectStore, Project } from '../projects/ProjectStore'
 import { ToolApprovalManager } from './ToolApprovalManager'
 import { WorkspaceService, WorkspaceEntry } from '../workspace/WorkspaceService'
+import { UsageStore, UsageSummary } from '../usage/UsageStore'
 
 export class Orchestrator {
   private eventBus = new EventBus()
@@ -34,6 +35,7 @@ export class Orchestrator {
   private toolApproval: ToolApprovalManager
   private workspaceService: WorkspaceService
   private activeWorkspacePath: string
+  private usageStore: UsageStore
 
   constructor(private workspaceRoot: string) {
     const contextPath = join(this.workspaceRoot, '.context')
@@ -41,6 +43,7 @@ export class Orchestrator {
     this.settingsStore = new SettingsStore(contextPath)
     this.secretsStore = new SecretsStore(contextPath)
     this.projectStore = new ProjectStore(contextPath)
+    this.usageStore = new UsageStore(contextPath)
 
     this.adapters = new AgentRegistry()
     this.toolApproval = new ToolApprovalManager(this.eventBus)
@@ -49,6 +52,7 @@ export class Orchestrator {
       this.contextManager,
       this.adapters,
       this.logger,
+      this.usageStore,
       (payload) => this.toolApproval.request(payload)
     )
     this.workspaceService = new WorkspaceService()
@@ -100,6 +104,15 @@ export class Orchestrator {
     return this.workspaceService.readFile(this.activeWorkspacePath, path)
   }
 
+  async getUsageSummary(): Promise<UsageSummary> {
+    return this.usageStore.getSummary()
+  }
+
+  async resetUsage(): Promise<UsageSummary> {
+    await this.usageStore.reset()
+    return this.usageStore.getSummary()
+  }
+
   async run(prompt: string): Promise<{ planId: string; summary: string }> {
     const settings = await this.settingsStore.load()
     const project = await this.resolveActiveProject(settings)
@@ -114,6 +127,7 @@ export class Orchestrator {
     const appLogPath = join(this.workspaceRoot, '.logs')
     this.contextManager = new ContextManager(appContextPath, this.logger)
     await this.contextManager.ensure()
+    await this.usageStore.ensure()
 
     const runStamp = new Date().toISOString().replace(/[:.]/g, '-')
     this.logger = new Logger(appLogPath, `run-${runStamp}.log`)
@@ -169,6 +183,7 @@ export class Orchestrator {
       this.contextManager,
       this.adapters,
       this.logger,
+      this.usageStore,
       (payload) => this.toolApproval.request(payload)
     )
 
@@ -314,6 +329,7 @@ export class Orchestrator {
 
     const result = await plannerAdapter.execute(planTask)
     await this.logger?.log('info', 'planner:result', { status: result.status })
+    await this.usageStore.recordTask(planTask, result)
 
     await this.appendPlannerContext(project, workspacePath, prompt, result.summary)
 

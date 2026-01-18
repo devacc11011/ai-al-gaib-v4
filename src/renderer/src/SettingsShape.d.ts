@@ -26,4 +26,18 @@ interface SettingsShape {
     model?: string
     outputFormat?: 'stream-json' | 'json' | 'jsonl'
   }
+  usagePricing?: {
+    claude?: {
+      inputPerMillionUsd?: number
+      outputPerMillionUsd?: number
+    }
+    openai?: {
+      inputPerMillionUsd?: number
+      outputPerMillionUsd?: number
+    }
+    gemini?: {
+      inputPerMillionUsd?: number
+      outputPerMillionUsd?: number
+    }
+  }
 }

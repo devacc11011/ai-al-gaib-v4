@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import './monaco'
 import Editor from '@monaco-editor/react'
 import { claudeModels, codexModels, geminiModels } from './modelOptions'
@@ -7,6 +7,20 @@ interface OrchestratorEventPayload {
   type: string
   timestamp: string
   data: unknown
+}
+
+type UsageProviderKey = 'claude' | 'openai' | 'gemini' | 'other'
+
+interface UsageStats {
+  tasks: number
+  inputChars: number
+  outputChars: number
+  durationMs: number
+}
+
+interface UsageSummary {
+  providers: Record<UsageProviderKey, UsageStats>
+  lastUpdated: string | null
 }
 
 function App(): React.JSX.Element {
@@ -37,10 +51,13 @@ function App(): React.JSX.Element {
   const [activePanel, setActivePanel] = useState<'command' | 'workspace' | 'plan'>('command')
   const [showSettings, setShowSettings] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [selectedEventIndex, setSelectedEventIndex] = useState<number | null>(null)
+  const eventItemRefs = useRef<Array<HTMLDivElement | null>>([])
   const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceEntryShape[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [fileContent, setFileContent] = useState<string>('')
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
+  const [usageSummary, setUsageSummary] = useState<UsageSummary | null>(null)
 
   useEffect(() => {
     const unsubscribe = window.api.orchestrator.onEvent((event) => {
@@ -73,6 +90,16 @@ function App(): React.JSX.Element {
   }, [])
 
   useEffect(() => {
+    if (selectedEventIndex === null) return
+    if (selectedEventIndex >= events.length) {
+      setSelectedEventIndex(null)
+      return
+    }
+    const node = eventItemRefs.current[selectedEventIndex]
+    if (node) node.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [events.length, selectedEventIndex])
+
+  useEffect(() => {
     const unsubscribe = window.api.menu.onAction((payload) => {
       if (payload.type === 'open-settings') setShowSettings(true)
       if (payload.type === 'switch-project') handleClearProject()
@@ -100,6 +127,11 @@ function App(): React.JSX.Element {
   useEffect(() => {
     window.api.secrets.get().then((data) => setSecrets(data))
   }, [])
+
+  useEffect(() => {
+    if (!showSettings) return
+    window.api.usage.get().then((data) => setUsageSummary(data))
+  }, [showSettings])
 
   useEffect(() => {
     if (activePanel !== 'workspace') return
@@ -130,6 +162,11 @@ function App(): React.JSX.Element {
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleResetUsage = async (): Promise<void> => {
+    const updated = await window.api.usage.reset()
+    setUsageSummary(updated)
   }
 
   const handleSaveSecrets = async (): Promise<void> => {
@@ -264,6 +301,48 @@ function App(): React.JSX.Element {
     return []
   }
 
+  const estimateTokens = (chars: number): number => Math.ceil(chars / 4)
+
+  const formatUsd = (value: number | null): string => {
+    if (value === null || Number.isNaN(value)) return '—'
+    return `$${value.toFixed(4)}`
+  }
+
+  const calcCost = (provider: keyof NonNullable<SettingsShape['usagePricing']>, stats: UsageStats): number | null => {
+    const pricing = settings?.usagePricing?.[provider]
+    if (!pricing?.inputPerMillionUsd && !pricing?.outputPerMillionUsd) return null
+    const inputTokens = estimateTokens(stats.inputChars)
+    const outputTokens = estimateTokens(stats.outputChars)
+    const inputCost =
+      pricing.inputPerMillionUsd !== undefined
+        ? (inputTokens / 1_000_000) * pricing.inputPerMillionUsd
+        : 0
+    const outputCost =
+      pricing.outputPerMillionUsd !== undefined
+        ? (outputTokens / 1_000_000) * pricing.outputPerMillionUsd
+        : 0
+    return inputCost + outputCost
+  }
+
+  const updatePricing = (
+    provider: keyof NonNullable<SettingsShape['usagePricing']>,
+    field: 'inputPerMillionUsd' | 'outputPerMillionUsd',
+    value: string
+  ): void => {
+    if (!settings) return
+    const parsed = value.trim() === '' ? undefined : Number(value)
+    setSettings({
+      ...settings,
+      usagePricing: {
+        ...settings.usagePricing,
+        [provider]: {
+          ...settings.usagePricing?.[provider],
+          [field]: Number.isFinite(parsed) ? parsed : undefined
+        }
+      }
+    })
+  }
+
   const currentProject = useMemo(() => {
     if (!settings?.activeProjectId) return null
     return projects.find((project) => project.id === settings.activeProjectId) ?? null
@@ -301,7 +380,7 @@ function App(): React.JSX.Element {
 
   if (settings && !settings.activeProjectId) {
     return (
-      <div className="app-shell">
+    <div className={`app-shell${activePanel === 'workspace' ? ' app-shell-wide' : ''}`}>
         <header className="app-header">
           <div>
             <div className="app-title">Select Project</div>
@@ -401,10 +480,15 @@ function App(): React.JSX.Element {
             <div className="sidebar-card">
               {events.length === 0 && <div className="event-empty">No events yet.</div>}
               {events.map((event, index) => (
-                <div key={`${event.type}-${index}`} className="sidebar-event">
+                <button
+                  key={`${event.type}-${index}`}
+                  type="button"
+                  className={`sidebar-event${selectedEventIndex === index ? ' selected' : ''}`}
+                  onClick={() => setSelectedEventIndex(index)}
+                >
                   <div className="event-type">{event.type}</div>
                   <div className="event-time">{new Date(event.timestamp).toLocaleTimeString()}</div>
-                </div>
+                </button>
               ))}
             </div>
           </>
@@ -518,7 +602,13 @@ function App(): React.JSX.Element {
               <div className="event-list">
                 {events.length === 0 && <div className="event-empty">No events yet.</div>}
                 {events.map((event, index) => (
-                  <div key={`${event.type}-${index}`} className="event-item">
+                  <div
+                    key={`${event.type}-${index}`}
+                    className={`event-item${selectedEventIndex === index ? ' selected' : ''}`}
+                    ref={(el) => {
+                      eventItemRefs.current[index] = el
+                    }}
+                  >
                     <div className="event-type">{event.type}</div>
                     <div className="event-time">{new Date(event.timestamp).toLocaleTimeString()}</div>
                     <pre>{JSON.stringify(event.data, null, 2)}</pre>
@@ -771,6 +861,121 @@ function App(): React.JSX.Element {
                     <button type="button" onClick={handleSaveSecrets} disabled={secretsSaving}>
                       {secretsSaving ? 'Saving...' : 'Save Keys'}
                     </button>
+                  </div>
+                )}
+              </section>
+
+              <section className="settings-section">
+                <div className="app-label">Usage & Cost (est.)</div>
+                {!usageSummary && <div className="event-empty">Loading usage...</div>}
+                {usageSummary && (
+                  <div className="settings-grid">
+                    <div className="usage-grid">
+                      {(['claude', 'openai', 'gemini'] as const).map((provider) => {
+                        const stats = usageSummary.providers[provider]
+                        const inputTokens = estimateTokens(stats.inputChars)
+                        const outputTokens = estimateTokens(stats.outputChars)
+                        const cost = calcCost(provider, stats)
+                        const label =
+                          provider === 'openai'
+                            ? 'OpenAI (Codex)'
+                            : provider.charAt(0).toUpperCase() + provider.slice(1)
+
+                        return (
+                          <div key={provider} className="usage-card">
+                            <div className="usage-title">{label}</div>
+                            <div className="usage-row">
+                              <span>Tasks</span>
+                              <span>{stats.tasks}</span>
+                            </div>
+                            <div className="usage-row">
+                              <span>Input tokens (est)</span>
+                              <span>{inputTokens.toLocaleString()}</span>
+                            </div>
+                            <div className="usage-row">
+                              <span>Output tokens (est)</span>
+                              <span>{outputTokens.toLocaleString()}</span>
+                            </div>
+                            <div className="usage-row">
+                              <span>Cost (est)</span>
+                              <span>{formatUsd(cost)}</span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <div className="settings-grid">
+                      <label>
+                        Claude input $/1M
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="e.g. 3.00"
+                          value={settings?.usagePricing?.claude?.inputPerMillionUsd ?? ''}
+                          onChange={(event) => updatePricing('claude', 'inputPerMillionUsd', event.target.value)}
+                        />
+                      </label>
+                      <label>
+                        Claude output $/1M
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="e.g. 15.00"
+                          value={settings?.usagePricing?.claude?.outputPerMillionUsd ?? ''}
+                          onChange={(event) => updatePricing('claude', 'outputPerMillionUsd', event.target.value)}
+                        />
+                      </label>
+                      <label>
+                        OpenAI input $/1M
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="e.g. 1.00"
+                          value={settings?.usagePricing?.openai?.inputPerMillionUsd ?? ''}
+                          onChange={(event) => updatePricing('openai', 'inputPerMillionUsd', event.target.value)}
+                        />
+                      </label>
+                      <label>
+                        OpenAI output $/1M
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="e.g. 3.00"
+                          value={settings?.usagePricing?.openai?.outputPerMillionUsd ?? ''}
+                          onChange={(event) => updatePricing('openai', 'outputPerMillionUsd', event.target.value)}
+                        />
+                      </label>
+                      <label>
+                        Gemini input $/1M
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="e.g. 0.50"
+                          value={settings?.usagePricing?.gemini?.inputPerMillionUsd ?? ''}
+                          onChange={(event) => updatePricing('gemini', 'inputPerMillionUsd', event.target.value)}
+                        />
+                      </label>
+                      <label>
+                        Gemini output $/1M
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="e.g. 1.50"
+                          value={settings?.usagePricing?.gemini?.outputPerMillionUsd ?? ''}
+                          onChange={(event) => updatePricing('gemini', 'outputPerMillionUsd', event.target.value)}
+                        />
+                      </label>
+                    </div>
+
+                    <div className="usage-meta">
+                      <div className="event-empty">
+                        Tokens are estimated from characters (chars / 4). Set pricing to estimate cost.
+                      </div>
+                      <button type="button" onClick={handleResetUsage}>
+                        Reset Usage
+                      </button>
+                    </div>
                   </div>
                 )}
               </section>

@@ -46,6 +46,10 @@ const api = {
   secrets: {
     get: (): Promise<unknown> => ipcRenderer.invoke('secrets:get'),
     update: (partial: unknown): Promise<unknown> => ipcRenderer.invoke('secrets:update', partial)
+  },
+  usage: {
+    get: (): Promise<unknown> => ipcRenderer.invoke('usage:get'),
+    reset: (): Promise<unknown> => ipcRenderer.invoke('usage:reset')
   }
 }
 

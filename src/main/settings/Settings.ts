@@ -19,6 +19,11 @@ export interface GeminiSettings {
   outputFormat?: 'stream-json' | 'json' | 'jsonl'
 }
 
+export interface UsagePricing {
+  inputPerMillionUsd?: number
+  outputPerMillionUsd?: number
+}
+
 export interface Settings {
   activeAgent: AgentType
   activeProjectId?: string
@@ -34,4 +39,9 @@ export interface Settings {
   claude?: ClaudeSettings
   codex?: CodexSettings
   gemini?: GeminiSettings
+  usagePricing?: {
+    claude?: UsagePricing
+    openai?: UsagePricing
+    gemini?: UsagePricing
+  }
 }

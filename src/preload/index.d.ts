@@ -39,6 +39,10 @@ declare global {
       get: () => Promise<SecretsShape>
       update: (partial: Partial<SecretsShape>) => Promise<SecretsShape>
     }
+    usage: {
+      get: () => Promise<UsageSummary | null>
+      reset: () => Promise<UsageSummary | null>
+    }
   }
 
   interface Window {
@@ -48,14 +52,15 @@ declare global {
 }
 
 interface SettingsShape {
-  activeAgent: 'mock' | 'claude-code' | 'codex' | 'gemini-cli'
+  activeAgent: 'claude-code' | 'codex' | 'gemini-cli'
   activeProjectId?: string
+  workspacePath?: string
   planner?: {
-    agent: 'mock' | 'claude-code' | 'codex' | 'gemini-cli'
+    agent: 'claude-code' | 'codex' | 'gemini-cli'
     model?: string
   }
   executor?: {
-    agent: 'mock' | 'claude-code' | 'codex' | 'gemini-cli'
+    agent: 'claude-code' | 'codex' | 'gemini-cli'
     model?: string
   }
   claude?: {
@@ -74,12 +79,21 @@ interface SettingsShape {
     model?: string
     outputFormat?: 'stream-json' | 'json' | 'jsonl'
   }
+  usagePricing?: {
+    claude?: UsagePricing
+    openai?: UsagePricing
+    gemini?: UsagePricing
+  }
+}
+
+interface UsagePricing {
+  inputPerMillionUsd?: number
+  outputPerMillionUsd?: number
 }
 
 interface SecretsShape {
   anthropicApiKey?: string
   openaiApiKey?: string
-  geminiApiKey?: string
 }
 
 interface ProjectShape {
@@ -94,4 +108,18 @@ interface WorkspaceEntryShape {
   type: 'file' | 'dir'
   path: string
   name: string
+}
+
+type UsageProviderKey = 'claude' | 'openai' | 'gemini' | 'other'
+
+interface UsageStats {
+  tasks: number
+  inputChars: number
+  outputChars: number
+  durationMs: number
+}
+
+interface UsageSummary {
+  providers: Record<UsageProviderKey, UsageStats>
+  lastUpdated: string | null
 }

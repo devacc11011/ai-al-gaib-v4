@@ -3,6 +3,7 @@ import { ContextManager } from '../context/ContextManager'
 import { EventBus } from './EventBus'
 import { Logger } from '../logging/Logger'
 import { Task, TaskResult } from '../types'
+import { UsageStore } from '../usage/UsageStore'
 
 export class Executor {
   constructor(
@@ -10,6 +11,7 @@ export class Executor {
     private contextManager: ContextManager,
     private adapters: AgentRegistry,
     private logger?: Logger,
+    private usageStore?: UsageStore,
     private approvalHandler?: (payload: {
       taskId: string
       agent: Task['agent']
@@ -115,6 +117,7 @@ export class Executor {
     task.status = result.status
 
     await this.contextManager.writeResult(result)
+    await this.usageStore?.recordTask(task, result)
     await this.logger?.log('info', 'executor:task_completed', {
       taskId: task.id,
       status: result.status
