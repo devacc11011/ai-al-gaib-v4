@@ -63,7 +63,7 @@ export class Executor {
       this.eventBus.emitEvent({
         type: 'agent:stream',
         timestamp: new Date().toISOString(),
-        data: payload
+        data: { ...payload, stage: 'executor' }
       })
       this.logger?.log('info', 'agent:stream', {
         taskId: payload.taskId,

@@ -7,7 +7,12 @@ export abstract class AgentAdapter {
   abstract isAvailable(): Promise<boolean>
 
   protected logger?: Logger
-  protected streamSink?: (payload: { taskId: string; agent: Task['agent']; text: string }) => void
+  protected streamSink?: (payload: {
+    taskId: string
+    agent: Task['agent']
+    text: string
+    stage?: 'planner' | 'executor'
+  }) => void
   protected approvalHandler?: (payload: {
     taskId: string
     agent: Task['agent']
@@ -20,7 +25,12 @@ export abstract class AgentAdapter {
   }
 
   setStreamSink(
-    sink?: (payload: { taskId: string; agent: Task['agent']; text: string }) => void
+    sink?: (payload: {
+      taskId: string
+      agent: Task['agent']
+      text: string
+      stage?: 'planner' | 'executor'
+    }) => void
   ): void {
     this.streamSink = sink
   }

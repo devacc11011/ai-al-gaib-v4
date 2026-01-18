@@ -44,9 +44,10 @@ function App(): React.JSX.Element {
     const unsubscribe = window.api.orchestrator.onEvent((event) => {
       setEvents((prev) => [event, ...prev].slice(0, 50))
       if (event.type === 'agent:stream' && typeof event.data === 'object' && event.data) {
-        const payload = event.data as { text?: string }
+        const payload = event.data as { text?: string; stage?: string }
         if (typeof payload.text === 'string') {
-          setStreamText((prev) => `${prev}${payload.text}`)
+          const prefix = payload.stage ? `[${payload.stage}] ` : ''
+          setStreamText((prev) => `${prev}${prefix}${payload.text}`)
         }
       }
       if (event.type === 'tool:request' && event.data && typeof event.data === 'object') {

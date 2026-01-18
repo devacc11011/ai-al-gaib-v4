@@ -1,6 +1,6 @@
-# ai-al-gaib-v4
+# Ai AL GAIB
 
-An Electron application with React and TypeScript
+Planner-Executor 구조로 복잡한 작업은 Planner가 설계하고, 실제 구현은 Executor에 맡겨 **비용 효율적**으로 실행하는 데 초점을 둔 데스크톱 앱.
 
 ## Recommended IDE Setup
 
