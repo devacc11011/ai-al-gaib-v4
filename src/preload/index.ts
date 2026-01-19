@@ -22,7 +22,11 @@ const api = {
   workspace: {
     pick: (): Promise<string | null> => ipcRenderer.invoke('workspace:pick'),
     listFiles: (depth = 3): Promise<unknown> => ipcRenderer.invoke('workspace:listFiles', depth),
-    readFile: (path: string): Promise<string> => ipcRenderer.invoke('workspace:readFile', path)
+    readFile: (path: string): Promise<string> => ipcRenderer.invoke('workspace:readFile', path),
+    writeFile: (payload: { path: string; contents: string }): Promise<boolean> =>
+      ipcRenderer.invoke('workspace:writeFile', payload),
+    writeFileAt: (payload: { workspacePath: string; path: string; contents: string }): Promise<boolean> =>
+      ipcRenderer.invoke('workspace:writeFileAt', payload)
   },
   projects: {
     list: (): Promise<unknown> => ipcRenderer.invoke('projects:list'),
@@ -50,6 +54,15 @@ const api = {
   usage: {
     get: (): Promise<unknown> => ipcRenderer.invoke('usage:get'),
     reset: (): Promise<unknown> => ipcRenderer.invoke('usage:reset')
+  },
+  guides: {
+    generate: (payload: {
+      workspacePath: string
+      projectName: string
+      summary: string
+      agent: string
+      model?: string
+    }): Promise<unknown> => ipcRenderer.invoke('guides:generate', payload)
   }
 }
 

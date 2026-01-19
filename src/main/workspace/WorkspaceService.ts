@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs'
-import { join, relative } from 'path'
+import { dirname, join, relative } from 'path'
 
 export interface WorkspaceEntry {
   type: 'file' | 'dir'
@@ -19,6 +19,12 @@ export class WorkspaceService {
   async readFile(root: string, target: string): Promise<string> {
     const filePath = join(root, target)
     return fs.readFile(filePath, 'utf-8')
+  }
+
+  async writeFile(root: string, target: string, contents: string): Promise<void> {
+    const filePath = join(root, target)
+    await fs.mkdir(dirname(filePath), { recursive: true })
+    await fs.writeFile(filePath, contents, 'utf-8')
   }
 
   private async walk(

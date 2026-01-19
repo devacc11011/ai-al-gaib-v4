@@ -207,6 +207,21 @@ app.whenReady().then(() => {
     return orchestrator.readWorkspaceFile(path)
   })
 
+  ipcMain.handle('workspace:writeFile', async (_event, payload: { path: string; contents: string }) => {
+    if (!orchestrator) return false
+    await orchestrator.writeWorkspaceFile(payload.path, payload.contents)
+    return true
+  })
+
+  ipcMain.handle(
+    'workspace:writeFileAt',
+    async (_event, payload: { workspacePath: string; path: string; contents: string }) => {
+      if (!orchestrator) return false
+      await orchestrator.writeWorkspaceFileAt(payload.workspacePath, payload.path, payload.contents)
+      return true
+    }
+  )
+
   ipcMain.handle('secrets:get', async () => {
     if (!orchestrator) return null
     return orchestrator.getSecrets()
@@ -226,6 +241,23 @@ app.whenReady().then(() => {
     if (!orchestrator) return null
     return orchestrator.resetUsage()
   })
+
+  ipcMain.handle(
+    'guides:generate',
+    async (
+      _event,
+      payload: { workspacePath: string; projectName: string; summary: string; agent: string; model?: string }
+    ) => {
+      if (!orchestrator) return null
+      return orchestrator.generateProjectGuides({
+        workspacePath: payload.workspacePath,
+        projectName: payload.projectName,
+        summary: payload.summary,
+        agent: payload.agent as never,
+        model: payload.model
+      })
+    }
+  )
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the

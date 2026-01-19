@@ -23,6 +23,8 @@ declare global {
       pick: () => Promise<string | null>
       listFiles: (depth?: number) => Promise<WorkspaceEntryShape[]>
       readFile: (path: string) => Promise<string>
+      writeFile: (payload: { path: string; contents: string }) => Promise<boolean>
+      writeFileAt: (payload: { workspacePath: string; path: string; contents: string }) => Promise<boolean>
     }
     projects: {
       list: () => Promise<ProjectShape[]>
@@ -42,6 +44,15 @@ declare global {
     usage: {
       get: () => Promise<UsageSummary | null>
       reset: () => Promise<UsageSummary | null>
+    }
+    guides: {
+      generate: (payload: {
+        workspacePath: string
+        projectName: string
+        summary: string
+        agent: 'claude-code' | 'codex' | 'gemini-cli'
+        model?: string
+      }) => Promise<unknown>
     }
   }
 

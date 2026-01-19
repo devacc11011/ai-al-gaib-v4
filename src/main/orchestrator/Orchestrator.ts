@@ -85,7 +85,9 @@ export class Orchestrator {
   }
 
   async createProject(name: string, workspacePath: string): Promise<Project> {
-    return this.projectStore.create(name, workspacePath)
+    const projectPath = join(workspacePath, name)
+    await fs.mkdir(projectPath, { recursive: true })
+    return this.projectStore.create(name, projectPath)
   }
 
   async selectProject(projectId: string): Promise<Settings> {
@@ -104,6 +106,14 @@ export class Orchestrator {
     return this.workspaceService.readFile(this.activeWorkspacePath, path)
   }
 
+  async writeWorkspaceFile(path: string, contents: string): Promise<void> {
+    await this.workspaceService.writeFile(this.activeWorkspacePath, path, contents)
+  }
+
+  async writeWorkspaceFileAt(workspacePath: string, path: string, contents: string): Promise<void> {
+    await this.workspaceService.writeFile(workspacePath, path, contents)
+  }
+
   async getUsageSummary(): Promise<UsageSummary> {
     return this.usageStore.getSummary()
   }
@@ -111,6 +121,66 @@ export class Orchestrator {
   async resetUsage(): Promise<UsageSummary> {
     await this.usageStore.reset()
     return this.usageStore.getSummary()
+  }
+
+  async generateProjectGuides(payload: {
+    workspacePath: string
+    projectName: string
+    summary: string
+    agent: AgentType
+    model?: string
+  }): Promise<TaskResult> {
+    const appContextPath = join(this.workspaceRoot, '.context')
+    const appLogPath = join(this.workspaceRoot, '.logs')
+    this.contextManager = new ContextManager(appContextPath, this.logger)
+    await this.contextManager.ensure()
+    await this.usageStore.ensure()
+
+    if (!this.logger) {
+      const runStamp = new Date().toISOString().replace(/[:.]/g, '-')
+      this.logger = new Logger(appLogPath, `guide-${runStamp}.log`)
+    }
+
+    const settings = await this.settingsStore.load()
+    const adapter = this.createAdapterForAgent(payload.agent, settings, payload.model, 'guide')
+    if (!adapter) {
+      return {
+        id: `guide-${randomUUID()}`,
+        status: 'failed',
+        durationMs: 0,
+        agent: payload.agent,
+        filesModified: [],
+        summary: 'No adapter available for selected agent.',
+        handoffNotes: [],
+        errors: [`Adapter not found for ${payload.agent}`]
+      }
+    }
+
+    adapter.setLogger(this.logger)
+
+    const task: Task = {
+      id: `guide-${randomUUID()}`,
+      title: 'Generate Project Guides',
+      agent: payload.agent,
+      status: 'pending',
+      dependencies: [],
+      workspace: payload.workspacePath,
+      description: [
+        'Create ARCH.md (high-level architecture) and GUIDE.md (implementation guide) in the project root.',
+        'Use the provided project summary as the seed.',
+        'ARCH.md should cover summary, goals, components, data flow, constraints.',
+        'GUIDE.md should cover setup, implementation details, milestones/tasks, testing, runbook, notes.',
+        'Write the files directly to disk.',
+        `Project name: ${payload.projectName}`,
+        `Summary: ${payload.summary || '(none provided)'}`
+      ].join('\n'),
+      inputContext: ['Generate project docs'],
+      expectedOutput: ['ARCH.md and GUIDE.md written to workspace root']
+    }
+
+    const result = await adapter.execute(task)
+    await this.usageStore.recordTask(task, result)
+    return result
   }
 
   async run(prompt: string): Promise<{ planId: string; summary: string }> {

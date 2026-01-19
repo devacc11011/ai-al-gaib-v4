@@ -36,6 +36,7 @@ function App(): React.JSX.Element {
   const [plannerStreamText, setPlannerStreamText] = useState('')
   const [executorStreamText, setExecutorStreamText] = useState('')
   const [otherStreamText, setOtherStreamText] = useState('')
+  const [guideStreamText, setGuideStreamText] = useState('')
   const [projects, setProjects] = useState<ProjectShape[]>([])
   const [projectName, setProjectName] = useState('')
   const [projectWorkspace, setProjectWorkspace] = useState('')
@@ -58,6 +59,13 @@ function App(): React.JSX.Element {
   const [fileContent, setFileContent] = useState<string>('')
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
   const [usageSummary, setUsageSummary] = useState<UsageSummary | null>(null)
+  const [showGuideWizard, setShowGuideWizard] = useState(false)
+  const [guideWorkspacePath, setGuideWorkspacePath] = useState('')
+  const [guideProjectName, setGuideProjectName] = useState('')
+  const [projectSummary, setProjectSummary] = useState('')
+  const [guideAgent, setGuideAgent] = useState<SettingsShape['activeAgent']>('claude-code')
+  const [guideModel, setGuideModel] = useState('')
+  const [guideRunning, setGuideRunning] = useState(false)
 
   useEffect(() => {
     const unsubscribe = window.api.orchestrator.onEvent((event) => {
@@ -69,6 +77,8 @@ function App(): React.JSX.Element {
             setPlannerStreamText((prev) => `${prev}${payload.text}`)
           } else if (payload.stage === 'executor') {
             setExecutorStreamText((prev) => `${prev}${payload.text}`)
+          } else if (payload.stage === 'guide') {
+            setGuideStreamText((prev) => `${prev}${payload.text}`)
           } else {
             setOtherStreamText((prev) => `${prev}${payload.text}`)
           }
@@ -202,6 +212,13 @@ function App(): React.JSX.Element {
     if (!created) return
     const list = await window.api.projects.list()
     setProjects(list)
+    setGuideProjectName(projectName)
+    setGuideWorkspacePath(created.workspacePath)
+    setProjectSummary('')
+    setGuideAgent(settings?.activeAgent ?? 'claude-code')
+    setGuideModel('')
+    setGuideStreamText('')
+    setShowGuideWizard(true)
     setProjectName('')
     setProjectWorkspace('')
   }
@@ -343,6 +360,82 @@ function App(): React.JSX.Element {
     })
   }
 
+  const getGuideModelValue = (): string =>
+    resolveModelValue(guideModel, modelOptionsForAgent(guideAgent))
+
+  const buildArchMarkdown = (): string => {
+    const title = guideProjectName ? `# ${guideProjectName} Architecture` : '# Architecture'
+    const summaryText = projectSummary.trim() || '- (fill in)'
+    const sections = [
+      title,
+      '',
+      '## Summary',
+      summaryText,
+      '',
+      '## Goals',
+      '- (define project goals)',
+      '',
+      '## Stakeholders',
+      '- (list stakeholders/users)',
+      '',
+      '## Core Components',
+      '- (list components/modules)',
+      '',
+      '## Data Flow',
+      '- (describe data flow)',
+      '',
+      '## Constraints',
+      '- (list constraints)',
+      ''
+    ]
+    return sections.join('\n')
+  }
+
+  const buildGuideMarkdown = (): string => {
+    const title = guideProjectName ? `# ${guideProjectName} Guide` : '# Guide'
+    const summaryText = projectSummary.trim() || '- (fill in)'
+    const sections = [
+      title,
+      '',
+      '## Setup',
+      '- (add setup steps)',
+      '',
+      '## Implementation Details',
+      summaryText,
+      '',
+      '## Milestones / Tasks',
+      '- (break down milestones)',
+      '',
+      '## Testing',
+      '- (how to test)',
+      '',
+      '## Runbook',
+      '- (operations/maintenance)',
+      '',
+      '## Notes',
+      '- (additional notes)',
+      ''
+    ]
+    return sections.join('\n')
+  }
+
+  const handleGenerateGuides = async (): Promise<void> => {
+    if (!guideWorkspacePath) return
+    setGuideRunning(true)
+    setGuideStreamText('')
+    try {
+      await window.api.guides.generate({
+        workspacePath: guideWorkspacePath,
+        projectName: guideProjectName,
+        summary: projectSummary,
+        agent: guideAgent,
+        model: guideModel || undefined
+      })
+    } finally {
+      setGuideRunning(false)
+    }
+  }
+
   const currentProject = useMemo(() => {
     if (!settings?.activeProjectId) return null
     return projects.find((project) => project.id === settings.activeProjectId) ?? null
@@ -422,7 +515,7 @@ function App(): React.JSX.Element {
               <div className="inline-row">
                 <input
                   type="text"
-                  placeholder="/path/to/project"
+                  placeholder="/path/to/workspace"
                   value={projectWorkspace}
                   onChange={(event) => setProjectWorkspace(event.target.value)}
                 />
@@ -431,6 +524,13 @@ function App(): React.JSX.Element {
                 </button>
               </div>
             </label>
+
+            <div className="event-empty">
+              Folder will be created at:{' '}
+              {projectWorkspace && projectName
+                ? `${projectWorkspace}/${projectName}`
+                : '(select workspace and project name)'}
+            </div>
 
             <button type="button" onClick={handleCreateProject}>
               Create Project
@@ -981,6 +1081,103 @@ function App(): React.JSX.Element {
               </section>
 
             </div>
+          </div>
+        </div>
+      )}
+
+      {showGuideWizard && (
+        <div className="settings-overlay">
+          <div className="settings-card guide-card">
+            <header className="settings-header">
+              <div>
+                <div className="panel-title">Project Guide Wizard</div>
+                <div className="app-subtitle">{guideProjectName || 'New Project'}</div>
+              </div>
+              <button type="button" onClick={() => setShowGuideWizard(false)}>
+                Skip
+              </button>
+            </header>
+
+            <section className="settings-section">
+              <div className="app-label">Project Summary</div>
+              <div className="settings-grid">
+                <label>
+                  One-paragraph summary
+                  <textarea
+                    rows={5}
+                    placeholder="Describe the project at a high level. This will seed ARCH.md and GUIDE.md."
+                    value={projectSummary}
+                    onChange={(event) => setProjectSummary(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Guide Agent
+                  <select
+                    value={guideAgent}
+                    onChange={(event) => {
+                      const nextAgent = event.target.value as SettingsShape['activeAgent']
+                      setGuideAgent(nextAgent)
+                      setGuideModel('')
+                    }}
+                  >
+                    <option value="claude-code">claude-code</option>
+                    <option value="codex">codex</option>
+                    <option value="gemini-cli">gemini-cli</option>
+                  </select>
+                </label>
+                <label>
+                  Guide Model
+                  <select
+                    value={getGuideModelValue()}
+                    onChange={(event) => {
+                      const value = event.target.value
+                      setGuideModel(value === 'custom' ? '' : value)
+                    }}
+                  >
+                    <option value="">(default)</option>
+                    {modelOptionsForAgent(guideAgent).map((model) => (
+                      <option key={model.value} value={model.value}>
+                        {model.label}
+                      </option>
+                    ))}
+                    <option value="custom">Custom...</option>
+                  </select>
+                  {getGuideModelValue() === 'custom' && (
+                    <input
+                      type="text"
+                      placeholder="custom model id"
+                      value={guideModel}
+                      onChange={(event) => setGuideModel(event.target.value)}
+                    />
+                  )}
+                </label>
+              </div>
+            </section>
+
+            <section className="settings-section">
+              <div className="app-label">Preview</div>
+              <div className="guide-preview">
+                <div>
+                  <div className="usage-title">ARCH.md</div>
+                  <pre>{buildArchMarkdown()}</pre>
+                </div>
+                <div>
+                  <div className="usage-title">GUIDE.md</div>
+                  <pre>{buildGuideMarkdown()}</pre>
+                </div>
+              </div>
+            </section>
+
+            <div className="guide-actions">
+              <button type="button" onClick={handleGenerateGuides} disabled={guideRunning}>
+                {guideRunning ? 'Generating...' : 'Generate Files'}
+              </button>
+            </div>
+
+            <section className="settings-section">
+              <div className="app-label">Console</div>
+              <pre className="guide-console">{guideStreamText || 'Waiting for output...'}</pre>
+            </section>
           </div>
         </div>
       )}
