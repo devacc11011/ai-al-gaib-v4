@@ -23,6 +23,12 @@ interface UsageSummary {
   lastUpdated: string | null
 }
 
+interface WorkspaceEntryShape {
+  type: 'file' | 'dir'
+  path: string
+  name: string
+}
+
 function App(): React.JSX.Element {
   const isStreamView = new URLSearchParams(window.location.search).get('view') === 'stream'
 
@@ -826,7 +832,7 @@ function App(): React.JSX.Element {
                           setSettings({
                             ...settings,
                             planner: {
-                              ...settings.planner,
+                              agent: settings.planner?.agent ?? settings.activeAgent,
                               model: value === 'custom' ? '' : value
                             }
                           })
@@ -851,7 +857,10 @@ function App(): React.JSX.Element {
                           onChange={(event) =>
                             setSettings({
                               ...settings,
-                              planner: { ...settings.planner, model: event.target.value }
+                              planner: {
+                                agent: settings.planner?.agent ?? settings.activeAgent,
+                                model: event.target.value
+                              }
                             })
                           }
                         />
@@ -890,7 +899,7 @@ function App(): React.JSX.Element {
                           setSettings({
                             ...settings,
                             executor: {
-                              ...settings.executor,
+                              agent: settings.executor?.agent ?? settings.activeAgent,
                               model: value === 'custom' ? '' : value
                             }
                           })
@@ -915,7 +924,10 @@ function App(): React.JSX.Element {
                           onChange={(event) =>
                             setSettings({
                               ...settings,
-                              executor: { ...settings.executor, model: event.target.value }
+                              executor: {
+                                agent: settings.executor?.agent ?? settings.activeAgent,
+                                model: event.target.value
+                              }
                             })
                           }
                         />
