@@ -68,7 +68,7 @@ jobs:
         with:
           name: ${{ github.ref_name }}
           prerelease: ${{ contains(github.ref_name, '-alpha') }}
-          overwrite_files: false
+          overwrite_files: true
           fail_on_unmatched_files: false
           files: |
             dist/**/*.dmg
