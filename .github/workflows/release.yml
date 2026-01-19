@@ -69,6 +69,8 @@ jobs:
           name: ${{ github.ref_name }}
           prerelease: ${{ contains(github.ref_name, '-alpha') }}
           files: |
-            dist/**
+            dist/**/*.dmg
+            dist/**/*.exe
+            dist/**/*.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
