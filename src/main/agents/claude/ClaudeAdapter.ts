@@ -3,6 +3,16 @@ import { Task, TaskResult } from '../../types'
 import { ClaudeSettings } from '../../settings/Settings'
 import { resolve } from 'path'
 
+type SDKUserMessage = {
+  type: 'user'
+  session_id: string
+  message: {
+    role: 'user'
+    content: Array<{ type: 'text'; text: string }>
+  }
+  parent_tool_use_id: null
+}
+
 export class ClaudeAdapter extends AgentAdapter {
   name: Task['agent'] = 'claude-code'
 
@@ -106,7 +116,7 @@ export class ClaudeAdapter extends AgentAdapter {
       return approved
     }
 
-    async function* inputStream() {
+    async function* inputStream(): AsyncIterable<SDKUserMessage> {
       yield {
         type: 'user',
         session_id: '',
@@ -115,7 +125,7 @@ export class ClaudeAdapter extends AgentAdapter {
           role: 'user',
           content: [{ type: 'text', text: task.description }]
         }
-      } as unknown
+      }
     }
 
     await this.logger?.log('info', 'claude:execute', {
@@ -130,7 +140,7 @@ export class ClaudeAdapter extends AgentAdapter {
     let chunkCount = 0
 
     try {
-      const stream = query({ prompt: inputStream() as AsyncIterable<unknown>, options })
+      const stream = query({ prompt: inputStream(), options })
 
       for await (const chunk of stream as AsyncIterable<unknown>) {
         chunkCount += 1

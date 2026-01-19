@@ -416,7 +416,7 @@ export class Orchestrator {
     agent: AgentType,
     settings: Settings,
     modelOverride?: string,
-    stage?: 'planner' | 'executor'
+    stage?: 'planner' | 'executor' | 'guide'
   ): MockAdapter | ClaudeAdapter | CodexAdapter | GeminiAdapter | null {
     const attach = (adapter: MockAdapter | ClaudeAdapter | CodexAdapter | GeminiAdapter) => {
       adapter.setLogger(this.logger)
