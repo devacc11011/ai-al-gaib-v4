@@ -68,6 +68,8 @@ jobs:
         with:
           name: ${{ github.ref_name }}
           prerelease: ${{ contains(github.ref_name, '-alpha') }}
+          append: true
+          fail_on_unmatched_files: false
           files: |
             dist/**/*.dmg
             dist/**/*.exe
