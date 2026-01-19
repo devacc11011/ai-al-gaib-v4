@@ -78,7 +78,7 @@ jobs:
           fail_on_unmatched_files: false
           files: |
             dist/**/*.dmg
-            dist/**/*.exe
+            dist/**/*-setup.exe
             dist/**/*.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
