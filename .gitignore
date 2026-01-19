@@ -3,6 +3,10 @@ dist
 out
 .idea
 build
+!build/entitlements.mac.plist
+!build/icon.icns
+!build/icon.ico
+!build/icon.png
 .vscode
 .DS_Store
 .eslintcache
