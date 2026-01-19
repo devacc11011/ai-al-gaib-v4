@@ -27,7 +27,6 @@ export interface UsagePricing {
 export interface Settings {
   activeAgent: AgentType
   activeProjectId?: string
-  workspacePath?: string
   planner?: {
     agent: AgentType
     model?: string

@@ -196,13 +196,6 @@ function App(): React.JSX.Element {
     }
   }
 
-  const handlePickWorkspace = async (): Promise<void> => {
-    if (!settings) return
-    const picked = await window.api.workspace.pick()
-    if (!picked) return
-    setSettings({ ...settings, workspacePath: picked })
-  }
-
   const handlePickProjectWorkspace = async (): Promise<void> => {
     const picked = await window.api.workspace.pick()
     if (!picked) return
@@ -781,23 +774,6 @@ function App(): React.JSX.Element {
                         <option value="codex">codex</option>
                         <option value="gemini-cli">gemini-cli</option>
                       </select>
-                    </label>
-
-                    <label>
-                      Workspace Path
-                      <div className="inline-row">
-                        <input
-                          type="text"
-                          placeholder="/path/to/workspace"
-                          value={settings.workspacePath ?? ''}
-                          onChange={(event) =>
-                            setSettings({ ...settings, workspacePath: event.target.value })
-                          }
-                        />
-                        <button type="button" onClick={handlePickWorkspace}>
-                          Pick...
-                        </button>
-                      </div>
                     </label>
 
                     <label>

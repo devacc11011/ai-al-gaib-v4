@@ -1,7 +1,6 @@
 interface SettingsShape {
   activeAgent: 'claude-code' | 'codex' | 'gemini-cli'
   activeProjectId?: string
-  workspacePath?: string
   planner?: {
     agent: 'claude-code' | 'codex' | 'gemini-cli'
     model?: string

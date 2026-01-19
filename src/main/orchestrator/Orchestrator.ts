@@ -188,9 +188,7 @@ export class Orchestrator {
     const project = await this.resolveActiveProject(settings)
     const workspacePath = project?.workspacePath
       ? resolve(project.workspacePath)
-      : settings.workspacePath
-        ? resolve(settings.workspacePath)
-        : this.workspaceRoot
+      : this.workspaceRoot
     this.activeWorkspacePath = workspacePath
 
     const appContextPath = join(this.workspaceRoot, '.context')
